@@ -94,6 +94,8 @@ def demucs_separation(audio_path, output_path):
 }
 ```
 
+**עיקרון חשוב:** השירות **אינו שולף נתיבי קבצים מ-Elasticsearch**. הנתיב לקובץ המקורי מגיע אך ורק דרך הודעת הKafka.
+
 **קלט קובץ:**
 - מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
 - פורמט: MP3, 44.1kHz, stereo

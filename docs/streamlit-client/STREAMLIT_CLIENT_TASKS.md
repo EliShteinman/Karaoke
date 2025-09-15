@@ -188,6 +188,8 @@ def render_lyrics(lyrics_data, current_time):
 
 ### 6. שירותי API ותקשורת - קלט/פלט מפורט
 
+**עקרון מרכזי:** הלקוח Streamlit מתקשר **אך ורק** עם ה-API Server. כל המידע - כולל קבצי השמע והכתוביות - מתקבל דרך REST API endpoints בלבד. אין גישה ישירה לקפקא, אלסטיק או shared storage.
+
 #### API Client - מפרט קריאות
 **POST /search - חיפוש שירים**
 ```python
