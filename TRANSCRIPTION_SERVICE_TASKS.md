@@ -121,10 +121,10 @@ def format_lrc_timestamp(seconds):
 
 ### 5. אינטגרציה עם Kafka
 
-#### Consumer לבקשות תמלול
-- [ ] יצירת `app/consumers/transcription_consumer.py`
-- [ ] האזנה לטופיק `transcription.process.requested`
-- [ ] עיבוד הודעות בפורמט:
+#### Consumer לבקשות תמלול - קלט
+**טופיק:** `transcription.process.requested`
+
+**פורמט הודעה:**
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
@@ -137,9 +137,30 @@ def format_lrc_timestamp(seconds):
 }
 ```
 
-#### Producer לדיווח תוצאות
-- [ ] יצירת `app/services/kafka_producer.py`
-- [ ] שליחת הודעת סיום לטופיק `transcription.done`:
+**קלט קובץ:**
+- מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
+- פורמט: MP3, 44.1kHz, stereo (עם ווקאל)
+
+- [ ] יצירת `app/consumers/transcription_consumer.py`
+- [ ] האזנה לטופיק `transcription.process.requested`
+- [ ] עיבוד הודעות ואימות פורמט
+
+#### Producer לדיווח תוצאות - פלט
+**פלט קובץ LRC:**
+- מיקום: `/shared/audio/dQw4w9WgXcQ/lyrics.lrc`
+- פורמט:
+```lrc
+[ar:Rick Astley]
+[ti:Never Gonna Give You Up]
+[00:00.50]We're no strangers to love
+[00:04.15]You know the rules and so do I
+[00:08.20]A full commitment's what I'm thinking of
+[00:12.50]You wouldn't get this from any other guy
+```
+
+**טופיק:** `transcription.done`
+
+**פורמט הודעה:**
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
@@ -153,9 +174,28 @@ def format_lrc_timestamp(seconds):
 }
 ```
 
-### 6. אינטגרציה עם Elasticsearch
+- [ ] יצירת `app/services/kafka_producer.py`
+- [ ] שליחת הודעת סיום לטופיק `transcription.done`
+
+### 6. אינטגרציה עם Elasticsearch - פלט
+**עדכון מסמך השיר לאחר תמלול מוצלח:**
+```json
+{
+  "_id": "dQw4w9WgXcQ",
+  "file_paths.lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
+  "updated_at": "2025-09-15T10:34:12Z",
+  "transcription_metadata": {
+    "language": "en",
+    "confidence": 0.92,
+    "word_count": 156,
+    "processing_time": 32.1
+  },
+  "search_text": "never gonna give you up rick astley love rules commitment"
+}
+```
+
 - [ ] יצירת `app/services/elasticsearch_updater.py`
-- [ ] עדכון מסמך השיר לאחר תמלול מוצלח:
+- [ ] מימוש פונקציית `update_song_document()`:
 ```python
 def update_song_document(video_id, lyrics_path, transcription_metadata):
     doc_update = {

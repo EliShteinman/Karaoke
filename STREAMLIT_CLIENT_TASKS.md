@@ -186,37 +186,106 @@ def render_lyrics(lyrics_data, current_time):
         st.markdown(f'<p style="opacity: 0.7">{next_line["text"]}</p>', unsafe_allow_html=True)
 ```
 
-### 6. שירותי API ותקשורת
+### 6. שירותי API ותקשורת - קלט/פלט מפורט
 
-#### API Client
-- [ ] יצירת `app/services/api_client.py`:
+#### API Client - מפרט קריאות
+**POST /search - חיפוש שירים**
 ```python
-class KaraokeAPIClient:
-    def __init__(self, base_url):
-        self.base_url = base_url
+# קלט
+query = "rick astley never gonna give you up"
+request = {"query": query}
 
-    def search_songs(self, query):
-        response = requests.post(f"{self.base_url}/search", json={"query": query})
-        return response.json()
-
-    def download_song(self, video_data):
-        response = requests.post(f"{self.base_url}/download", json=video_data)
-        return response.json()
-
-    def get_ready_songs(self):
-        response = requests.get(f"{self.base_url}/songs")
-        return response.json()["songs"]
-
-    def get_song_status(self, video_id):
-        response = requests.get(f"{self.base_url}/songs/{video_id}/status")
-        return response.json()
-
-    def download_song_files(self, video_id):
-        response = requests.get(f"{self.base_url}/songs/{video_id}/download")
-        return response.content  # ZIP file
+# פלט
+response = {
+    "results": [
+        {
+            "video_id": "dQw4w9WgXcQ",
+            "title": "Rick Astley - Never Gonna Give You Up",
+            "channel": "RickAstleyVEVO",
+            "duration": 213,
+            "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+            "published_at": "2009-10-25T09:57:33Z"
+        }
+    ]
+}
 ```
 
-#### File Management
+**POST /download - הורדת שיר**
+```python
+# קלט
+video_data = {
+    "video_id": "dQw4w9WgXcQ",
+    "title": "Rick Astley - Never Gonna Give You Up",
+    "channel": "RickAstleyVEVO",
+    "duration": 213,
+    "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+}
+
+# פלט
+response = {
+    "status": "accepted",
+    "video_id": "dQw4w9WgXcQ",
+    "message": "Song queued for processing"
+}
+```
+
+**GET /songs - רשימת שירים מוכנים**
+```python
+# פלט
+response = {
+    "songs": [
+        {
+            "video_id": "dQw4w9WgXcQ",
+            "title": "Rick Astley - Never Gonna Give You Up",
+            "artist": "Rick Astley",
+            "status": "processing",
+            "created_at": "2025-09-15T10:30:00Z",
+            "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+            "duration": 213,
+            "files_ready": true
+        }
+    ]
+}
+```
+
+**GET /songs/{video_id}/status - סטטוס שיר**
+```python
+# פלט
+response = {
+    "video_id": "dQw4w9WgXcQ",
+    "status": "processing",
+    "progress": {
+        "download": true,
+        "audio_processing": true,
+        "transcription": true,
+        "files_ready": true
+    }
+}
+```
+
+**GET /songs/{video_id}/download - הורדת קבצים**
+```python
+# פלט: ZIP file עם:
+# - vocals_removed.mp3 (מוזיקה ללא ווקאל)
+# - lyrics.lrc (כתוביות עם timestamps)
+```
+
+- [ ] יצירת `app/services/api_client.py` עם כל הפונקציות
+- [ ] טיפול בשגיאות HTTP ובvalidation
+- [ ] timeout ו-retry logic לכל קריאה
+
+#### File Management - עיבוד קבצי ZIP
+**קלט:** ZIP content מ-API Server
+
+**פלט:** קבצים מחולצים
+```python
+# מבנה הקבצים לאחר חילוץ:
+{
+    "audio": "/tmp/songs/dQw4w9WgXcQ/vocals_removed.mp3",
+    "lyrics": "/tmp/songs/dQw4w9WgXcQ/lyrics.lrc"
+}
+```
+
 - [ ] יצירת `app/services/file_manager.py`:
 ```python
 def extract_song_files(zip_content, video_id):
@@ -267,7 +336,25 @@ def play_audio_segment(audio_data, start_time, end_time):
     return temp_file
 ```
 
-#### LRC Parser
+#### LRC Parser - עיבוד כתוביות
+**קלט:** תוכן קובץ LRC
+```lrc
+[ar:Rick Astley]
+[ti:Never Gonna Give You Up]
+[00:00.50]We're no strangers to love
+[00:04.15]You know the rules and so do I
+[00:08.20]A full commitment's what I'm thinking of
+```
+
+**פלט:** רשימת כתוביות מתוזמנות
+```python
+[
+    {"time": 0.5, "text": "We're no strangers to love"},
+    {"time": 4.15, "text": "You know the rules and so do I"},
+    {"time": 8.2, "text": "A full commitment's what I'm thinking of"}
+]
+```
+
 - [ ] יצירת `app/services/lrc_parser.py`:
 ```python
 def parse_lrc_file(lrc_content):

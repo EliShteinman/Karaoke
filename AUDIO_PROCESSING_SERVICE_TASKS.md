@@ -82,10 +82,10 @@ def demucs_separation(audio_path, output_path):
 
 ### 4. אינטגרציה עם Kafka
 
-#### Consumer לבקשות עיבוד
-- [ ] יצירת `app/consumers/audio_consumer.py`
-- [ ] האזנה לטופיק `audio.process.requested`
-- [ ] עיבוד הודעות בפורמט:
+#### Consumer לבקשות עיבוד - קלט
+**טופיק:** `audio.process.requested`
+
+**פורמט הודעה:**
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
@@ -94,9 +94,22 @@ def demucs_separation(audio_path, output_path):
 }
 ```
 
-#### Producer לדיווח תוצאות
-- [ ] יצירת `app/services/kafka_producer.py`
-- [ ] שליחת הודעת סיום לטופיק `audio.vocals_processed`:
+**קלט קובץ:**
+- מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
+- פורמט: MP3, 44.1kHz, stereo
+
+- [ ] יצירת `app/consumers/audio_consumer.py`
+- [ ] האזנה לטופיק `audio.process.requested`
+- [ ] עיבוד הודעות ואימות פורמט
+
+#### Producer לדיווח תוצאות - פלט
+**פלט קובץ:**
+- מיקום: `/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3`
+- פורמט: MP3, 44.1kHz, stereo (ללא ווקאל)
+
+**טופיק:** `audio.vocals_processed`
+
+**פורמט הודעה:**
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
@@ -108,9 +121,26 @@ def demucs_separation(audio_path, output_path):
 }
 ```
 
-### 5. אינטגרציה עם Elasticsearch
+- [ ] יצירת `app/services/kafka_producer.py`
+- [ ] שליחת הודעת סיום לטופיק `audio.vocals_processed`
+
+### 5. אינטגרציה עם Elasticsearch - פלט
+**עדכון מסמך השיר לאחר עיבוד מוצלח:**
+```json
+{
+  "_id": "dQw4w9WgXcQ",
+  "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
+  "updated_at": "2025-09-15T10:33:45Z",
+  "processing_metadata.audio": {
+    "quality_score": 0.85,
+    "processing_time": 45.2,
+    "method": "demucs"
+  }
+}
+```
+
 - [ ] יצירת `app/services/elasticsearch_updater.py`
-- [ ] עדכון מסמך השיר לאחר עיבוד מוצלח:
+- [ ] מימוש פונקציית `update_song_document()`:
 ```python
 def update_song_document(video_id, vocals_removed_path, metadata):
     doc_update = {

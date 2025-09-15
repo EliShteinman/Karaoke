@@ -23,7 +23,32 @@
 
 ### 3. פונקציונליות חיפוש
 
-#### Search Service
+#### Search Service - קלט ופלט
+**קלט (מ-API Server):**
+```json
+{
+  "query": "rick astley never gonna"
+}
+```
+
+**פלט (ל-API Server):**
+```json
+{
+  "results": [
+    {
+      "video_id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
+      "channel": "RickAstleyVEVO",
+      "duration": 213,
+      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "published_at": "2009-10-25T09:57:33Z",
+      "view_count": 1500000000
+    }
+  ]
+}
+```
+
+#### משימות יישום
 - [ ] יצירת `app/services/youtube_search.py`
 - [ ] מימוש פונקציית `search_videos(query: str) -> List[VideoResult]`:
   - קריאה ל-YouTube Data API v3
@@ -39,7 +64,24 @@
 
 ### 4. פונקציונליות הורדה
 
-#### Download Service
+#### Download Service - קלט ופלט
+**קלט (מ-API Server דרך Kafka):**
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "channel": "RickAstleyVEVO",
+  "duration": 213,
+  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+  "action": "download"
+}
+```
+
+**פלט (קובץ):**
+- מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
+- פורמט: MP3, 44.1kHz, stereo
+
+#### משימות יישום
 - [ ] יצירת `app/services/youtube_download.py`
 - [ ] התקנת yt-dlp והגדרת configurations:
   ```python
@@ -68,16 +110,24 @@
 ### 5. אינטגרציה עם Kafka
 
 #### Consumer - קבלת בקשות הורדה
+**טופיק:** `song.download.requested`
+
+**פורמט הודעה:**
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "channel": "RickAstleyVEVO",
+  "duration": 213,
+  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+  "action": "download"
+}
+```
+
 - [ ] יצירת `app/consumers/download_consumer.py`
 - [ ] האזנה לטופיק `song.download.requested`
-- [ ] עיבוד הודעות בפורמט:
-  ```json
-  {
-    "video_id": "dQw4w9WgXcQ",
-    "title": "Rick Astley - Never Gonna Give You Up",
-    "action": "download"
-  }
-  ```
+- [ ] עיבוד הודעות ובדיקת פורמט
+- [ ] קריאה לפונקציית download_audio
 
 #### Producer - שליחת הודעות
 - [ ] יצירת `app/services/kafka_producer.py`
@@ -124,6 +174,16 @@
 ```
 
 ### 6. עדכון Elasticsearch
+**עדכון מסמך השיר לאחר הורדה מוצלחת:**
+```python
+doc_update = {
+    "file_paths.original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+    "updated_at": "2025-09-15T10:32:15Z",
+    "metadata.file_size": 3456789,
+    "metadata.duration": 213
+}
+```
+
 - [ ] יצירת `app/services/elasticsearch_updater.py`
 - [ ] עדכון מסמך השיר לאחר הורדה מוצלחת:
   - הוספת `file_paths.original`

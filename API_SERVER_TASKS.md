@@ -31,12 +31,59 @@
 ### 4. API Endpoints
 
 #### POST /search
+**קלט:**
+```json
+{
+  "query": "rick astley never gonna give you up"
+}
+```
+
+**פלט:**
+```json
+{
+  "results": [
+    {
+      "video_id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
+      "channel": "RickAstleyVEVO",
+      "duration": 213,
+      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "published_at": "2009-10-25T09:57:33Z"
+    }
+  ]
+}
+```
+
 - [ ] יצירת `app/routes/search.py`
 - [ ] אימות קלט (Pydantic validation)
 - [ ] קריאה ל-YouTube Service
 - [ ] החזרת 10 תוצאות מעוצבות
 
 #### POST /download
+**קלט:**
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "channel": "RickAstleyVEVO",
+  "duration": 213,
+  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+}
+```
+
+**פלט:**
+```json
+{
+  "status": "accepted",
+  "video_id": "dQw4w9WgXcQ",
+  "message": "Song queued for processing"
+}
+```
+
+**פעולות פנימיות:**
+1. יצירת מסמך ב-Elasticsearch עם `status: "downloading"`
+2. שליחת הודעה ל-Kafka topic `song.download.requested`
+
 - [ ] יצירת `app/routes/download.py`
 - [ ] אימות שהשיר לא קיים כבר
 - [ ] יצירת מסמך חדש ב-Elasticsearch עם `status: "downloading"`
@@ -44,6 +91,26 @@
 - [ ] החזרת `202 Accepted` עם video_id
 
 #### GET /songs
+**קלט:** None
+
+**פלט:**
+```json
+{
+  "songs": [
+    {
+      "video_id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "status": "processing",
+      "created_at": "2025-09-15T10:30:00Z",
+      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "duration": 213,
+      "files_ready": true
+    }
+  ]
+}
+```
+
 - [ ] יצירת `app/routes/songs.py`
 - [ ] מימוש שאילתה ל-Elasticsearch:
   ```json
@@ -65,11 +132,33 @@
 - [ ] החזרת רשימה עם `files_ready: true`
 
 #### GET /songs/{video_id}/status
+**קלט:** video_id בURL
+
+**פלט:**
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "status": "processing",
+  "progress": {
+    "download": true,
+    "audio_processing": true,
+    "transcription": true,
+    "files_ready": true
+  }
+}
+```
+
 - [ ] קריאת מסמך מ-Elasticsearch
 - [ ] בדיקת קיום הקבצים בשדה `file_paths`
 - [ ] החזרת אובייקט progress מפורט
 
 #### GET /songs/{video_id}/download
+**קלט:** video_id בURL
+
+**פלט:** ZIP file עם הקבצים:
+- `vocals_removed.mp3` (מוזיקה ללא ווקאל)
+- `lyrics.lrc` (כתוביות עם timestamps)
+
 - [ ] אימות שהשיר מוכן (שני הקבצים קיימים)
 - [ ] יצירת ZIP עם:
   - `vocals_removed.mp3`
