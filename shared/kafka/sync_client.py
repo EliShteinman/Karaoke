@@ -6,6 +6,7 @@ from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
 
 from .json_helpers import create_kafka_message, deserialize_json, serialize_json
+from ..config import kafka_config
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ class KafkaProducerSync:
     For sending messages with standard Python calls
     """
 
-    def __init__(self, bootstrap_servers: str = "localhost:9092", **config):
+    def __init__(self, bootstrap_servers: str = None, **config):
         """
         Create sync Producer
 
@@ -24,10 +25,10 @@ class KafkaProducerSync:
             bootstrap_servers: Kafka servers address
             **config: Extra settings
         """
-        self.bootstrap_servers = bootstrap_servers
+        self.bootstrap_servers = bootstrap_servers or kafka_config.bootstrap_servers
 
         self._default_config = {
-            "bootstrap_servers": bootstrap_servers,
+            "bootstrap_servers": self.bootstrap_servers,
             "value_serializer": lambda x: serialize_json(x).encode("utf-8"),
             "key_serializer": lambda x: x.encode("utf-8") if x else None,
         }
@@ -141,7 +142,7 @@ class KafkaConsumerSync:
     def __init__(
         self,
         topics: List[str],
-        bootstrap_servers: str = "localhost:9092",
+        bootstrap_servers: str = None,
         group_id: str = "default_group",
         **config,
     ):
@@ -155,12 +156,12 @@ class KafkaConsumerSync:
             **config: Extra settings
         """
         self.topics = topics
-        self.bootstrap_servers = bootstrap_servers
+        self.bootstrap_servers = bootstrap_servers or kafka_config.bootstrap_servers
         self.group_id = group_id
         self.last_check_time = None
 
         default_config = {
-            "bootstrap_servers": bootstrap_servers,
+            "bootstrap_servers": self.bootstrap_servers,
             "group_id": group_id,
             "value_deserializer": lambda x: deserialize_json(x.decode("utf-8")),
             "key_deserializer": lambda x: x.decode("utf-8") if x else None,

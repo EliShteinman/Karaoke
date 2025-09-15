@@ -1,7 +1,0 @@
-import os
-
-class LogConfig:
-    LOG_ELASTICSEARCH_SCHEME = os.getenv("LOG_ELASTICSEARCH_SCHEME", "http")
-    LOG_ELASTICSEARCH_HOST = os.getenv("LOG_ELASTICSEARCH_HOST", "localhost")
-    LOG_ELASTICSEARCH_PORT = int(os.getenv("LOG_ELASTICSEARCH_PORT", 9200))
-    LOG_ELASTICSEARCH_INDEX_LOG = os.getenv("LOG_ELASTICSEARCH_INDEX_LOG", "logs")
