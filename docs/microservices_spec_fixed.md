@@ -1,266 +1,191 @@
-# מפרט קוביות מיקרו-סרביסים - יישום קריוקי (גרסת MVP)
+# מפרט מיקרו-סרביסים - מערכת קריוקי (ארכיטקטורה מחייבת)
 
-## 1. API Server
-**תפקיד:** נקודת כניסה יחידה, ניתוב בקשות
+## סקירה כוללת של המערכת
 
-### API Endpoints:
-- `POST /search` - חיפוש שירים ביוטיוב
-- `POST /download` - בקשת הורדת שיר נבחר  
-- `GET /songs` - רשימת שירים מוכנים
-- `GET /songs/{video_id}/status` - סטטוס שיר ספציפי
-- `GET /songs/{video_id}/download` - הורדת קובץ קריוקי
+מערכת הקריוקי מורכבת מחמישה מיקרו-סרביסים עצמאיים המתקשרים באמצעות Kafka ו-HTTP, עם Elasticsearch לניהול מטאדאטה ו-Shared Storage לקבצים. כל שירות אחראי על תחום פונקציונלי ספציפי ומתקשר עם השירותים האחרים באופן אסינכרוני.
 
-### Endpoint: `POST /download`
+## חלוקת אחריות מפורטת
 
-**פעולות:**
-1. מקבל בקשה להורדת שיר מהלקוח (Streamlit).
-2. **יוצר מסמך חדש באינדקס `songs` ב-Elasticsearch.** המסמך יכיל את המטא-דאטה שהתקבל (video_id, title, וכו') וסטטוס התחלתי: `"status": "downloading"`.
-3. שולח הודעה לטופיק `song.download.requested` ב-Kafka כדי להתחיל את תהליך ההורדה.
-4. מחזיר תגובת `202 Accepted` ללקוח.
+### 1. API Server - נקודת כניסה יחידה
+**תפקיד עיקרי:** מתזמן כללי של המערכת ונקודת כניסה יחידה לכל הבקשות
 
-### Endpoint: `GET /songs`
+**אחריות מלאה:**
+- קבלת כל בקשות HTTP מ-Streamlit Client
+- ניתוב בקשות חיפוש ל-YouTube Service
+- יצירת מסמכים חדשים ב-Elasticsearch לשירים חדשים
+- שליחת פקודות הורדה ל-Kafka
+- מתן סטטוס התקדמות לשירותים חיצוניים
+- הספקת קבצי ZIP מוכנים ללקוחות
+- ניהול לוגיקת "שירים מוכנים" על בסיס קיום קבצים
 
-**לוגיקת חיפוש מעודכנת:**
-במקום לחפש שירים עם `status: "ready"`, **השאילתה באלסטיק תהיה חיפוש כל המסמכים שבהם שני השדות `file_paths.vocals_removed` ו-`file_paths.lyrics` קיימים ואינם ריקים.**
+**לא אחראי על:**
+- ביצוע הורדות בפועל מיוטיוב
+- עיבוד אודיו או הסרת ווקאל
+- תמלול השירים
+- אחסון קבצי מדיה
 
-דוגמת שאילתה:
-```json
-{
-  "query": {
-    "bool": {
-      "must": [
-        {"exists": {"field": "file_paths.vocals_removed"}},
-        {"exists": {"field": "file_paths.lyrics"}},
-        {"bool": {"must_not": [
-          {"term": {"file_paths.vocals_removed": ""}},
-          {"term": {"file_paths.lyrics": ""}}
-        ]}}
-      ]
-    }
-  }
-}
+### 2. YouTube Service - מומחה יוטיוב
+**תפקיד עיקרי:** ניהול כל הפעילות הקשורה ל-YouTube ותיזמור השלבים הבאים
+
+**אחריות מלאה:**
+- חיפוש שירים דרך YouTube Data API
+- הורדת קבצי אודיו באמצעות YTDLP
+- שמירת קבצים ב-Shared Storage
+- עדכון Elasticsearch עם נתיבי קבצים מקוריים
+- הפעלת השלבים הבאים בתהליך (Audio ו-Transcription)
+- ניהול שגיאות הורדה ותקשורת עם YouTube
+
+**לא אחראי על:**
+- עיבוד האודיו שהורד
+- תמלול או יצירת כתוביות
+- הצגת תוצאות לנגן הקריוקי
+- ניהול מטאדאטה מעבר לקובץ המקורי
+
+### 3. Audio Processing Service - מומחה עיבוד אודיו
+**תפקיד עיקרי:** הסרת ווקאל מקבצי האודיו וייצור גרסה ללא ווקאל
+
+**אחריות מלאה:**
+- עיבוד קבצי אודיו מקוריים והסרת ווקאל
+- יישום אלגוריתמי Center Channel Extraction
+- שמירת קבצי אודיו מעובדים ב-Shared Storage
+- עדכון Elasticsearch עם נתיבי קבצים מעובדים
+- מדידת איכות העיבוד וחישוב ציונים
+- ניהול שגיאות עיבוד ודיווח כשלים
+
+**לא אחראי על:**
+- הורדה מיוטיוב או מקורות חיצוניים
+- תמלול או יצירת כתוביות
+- נגינת האודיו או הצגה למשתמש
+- ניהול מטאדאטה כללית של השיר
+
+### 4. Transcription Service - מומחה תמלול
+**תפקיד עיקרי:** תמלול השירים ויצירת קבצי כתוביות LRC עם סנכרון זמן
+
+**אחריות מלאה:**
+- תמלול קבצי אודיו מקוריים באמצעות Whisper
+- יצירת קבצי LRC עם timestamps מדויקים
+- סנכרון כתוביות עם מבנה שירה
+- שמירת קבצי כתוביות ב-Shared Storage
+- עדכון Elasticsearch עם נתיבי קבצי כתוביות
+- הערכת איכות התמלול ומדידת אמינות
+
+**לא אחראי על:**
+- הורדה או עיבוד של קבצי אודיו
+- הסרת ווקאל או עיבוד אודיו
+- הצגת הכתוביות בנגן
+- ניהול סטטוס כללי של השיר
+
+### 5. Streamlit Client - ממשק משתמש
+**תפקיד עיקרי:** ממשק משתמש מלא לחיפוש, הורדה והפעלת קריוקי
+
+**אחריות מלאה:**
+- הצגת ממשק חיפוש ותוצאות למשתמש
+- ניהול בקשות הורדה ומעקב התקדמות
+- הצגת ספריית שירים מוכנים
+- נגן קריוקי עם סנכרון כתוביות בזמן אמת
+- ניהול מצב אפליקציה ו-session state
+- חוויית משתמש ואינטראקציה
+
+**לא אחראי על:**
+- עיבוד או אחסון קבצים בשרת
+- תקשורת ישירה עם שירותי התשתית
+- ביצוע פעולות backend או עיבוד נתונים
+- ניהול מטאדאטה מעבר לתצוגה
+
+## מערכות תשתית משותפות
+
+### Elasticsearch - מנוע חיפוש ומטאדאטה
+**תפקיד:** ניהול מרכזי של מטאדאטה לכל השירים במערכת
+
+**שירותים שכותבים:**
+- **API Server:** יוצר מסמכים חדשים עם סטטוס ראשוני
+- **YouTube Service:** מעדכן נתיבי קבצים מקוריים
+- **Audio Processing Service:** מעדכן נתיבי קבצים מעובדים
+- **Transcription Service:** מעדכן נתיבי קבצי כתוביות
+
+**שירותים שקוראים:**
+- **API Server:** חיפוש שירים מוכנים וסטטוסים
+- כל השירותים: שליפת מטאדאטה לצורכי עיבוד
+
+### Kafka - תקשורת אסינכרונית
+**תפקיד:** תיזמור תהליכי עיבוד ותקשורת בין שירותים
+
+**Topics ומטרותיהם:**
+- `song.download.requested`: פקודות הורדה מ-API Server ל-YouTube Service
+- `song.downloaded`: אירועי סיום הורדה מ-YouTube Service
+- `audio.process.requested`: פקודות עיבוד מ-YouTube Service ל-Audio Service
+- `audio.vocals_processed`: אירועי סיום עיבוד מ-Audio Service
+- `transcription.process.requested`: פקודות תמלול מ-YouTube Service ל-Transcription Service
+- `transcription.done`: אירועי סיום תמלול מ-Transcription Service
+
+### Shared Storage - אחסון קבצים
+**תפקיד:** אחסון מרכזי לכל קבצי המדיה והתוצרים
+
+**מבנה נתיבים:**
+```
+/shared/audio/{video_id}/
+├── original.mp3           # YouTube Service
+├── vocals_removed.mp3     # Audio Processing Service
+└── lyrics.lrc            # Transcription Service
 ```
 
-### קלט/פלט:
-- **קלט:** HTTP requests מ-Streamlit
-- **פלט:** JSON responses
+## זרימת תהליך מלאה
 
-### תקשורת:
-- ✅ **Elasticsearch:** קריאה וכתיבה (חיפוש, סטטוס, מטאדאטה)
-- ✅ **Kafka:** שליחת הודעות להורדה
-- ❌ **Shared Storage:** לא גש ישיר
-
----
-
-## 2. YouTube Service
-**תפקיד:** קוביה אחת שמטפלת בכל הלוגיקה של יוטיוב
-
-### שתי הפונקציות:
-
-**פונקציה 1: חיפוש**
-- קבלת שאילתת חיפוש מה-API Server
-- שליחת בקשה ל-YouTube API
-- החזרת 10 תוצאות למשתמש
-
-**פונקציה 2: הורדה**
-- קבלת video_id נבחר מהמשתמש  
-- הורדת השיר עם YTDLP
-- שמירה ב-Shared Storage
-- שליחת הודעה ל-Kafka שההורדה הושלמה
-- **הפעלת השלבים הבאים בתהליך**
-
-### זרימה:
-1. API Server → YouTube Service: `{"query": "rick astley"}`
-2. YouTube Service → YouTube API → חיפוש
-3. YouTube Service → API Server: רשימת 10 תוצאות
-4. משתמש בוחר → API Server → YouTube Service: `{"video_id": "dQw4w9WgXcQ"}`
-5. YouTube Service → YTDLP → הורדה
-6. **YouTube Service מדווח למערכת על סיום ההורדה:**
-   - הוא שולח **אירוע (Event)** לטופיק `song.downloaded` המציין שהעבודה הושלמה:
-   ```json
-   {
-     "video_id": "dQw4w9WgXcQ",
-     "status": "downloaded",
-     "file_path": "/shared/audio/dQw4w9WgXcQ/original.mp3"
-   }
-   ```
-7. **YouTube Service מפעיל את השלבים הבאים בתהליך:**
-   - מיד לאחר מכן, הוא שולח שתי **פקודות (Commands)** נפרדות לטופיקים המתאימים:
-   - **פקודה 1** לטופיק `audio.process.requested`:
-   ```json
-   {
-     "video_id": "dQw4w9WgXcQ",
-     "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3"
-   }
-   ```
-   - **פקודה 2** לטופיק `transcription.process.requested`:
-   ```json
-   {
-     "video_id": "dQw4w9WgXcQ",
-     "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3"
-   }
-   ```
-
-### תקשורת:
-- ✅ **YouTube API:** חיפוש שירים
-- ✅ **YTDLP:** הורדת וידאו
-- ✅ **Shared Storage:** שמירת קובץ MP3
-- ✅ **Kafka:** הודעה על השלמת הורדה + הפעלת שלבים הבאים
-- ✅ **Elasticsearch:** עדכון מטאדאטה ופרטי השיר
-
----
-
-## 3. Audio Processing Service
-**תפקיד:** הסרת ווקאל מהשיר
-
-### פונקציונליות:
-- האזנה ל-Kafka topic: `audio.process.requested`
-- קריאת קובץ מקורי
-- הסרת ווקאל (Vocal Isolation/Removal)
-- שמירת קובץ מעובד
-- **עדכון Elasticsearch עם נתיב הקובץ החדש**
-
-### זרימת עבודה מפורטת:
-1. קבלת הודעה מקפקא
-2. עיבוד הקובץ והסרת ווקאל
-3. שמירת הקובץ המעובד
-4. **עדכון המסמך המתאים ב-Elasticsearch והוספת הנתיב תחת `file_paths.vocals_removed`**
-5. שליחת הודעה לקפקא על השלמת העיבוד
-
-### קלט/פלט:
-- **קלט (Kafka):** `{"video_id": "dQw4w9WgXcQ", "original_path": "/shared/audio/.../original.mp3"}`
-- **קלט (File):** `/shared/audio/{video_id}/original.mp3`
-- **פלט (File):** `/shared/audio/{video_id}/vocals_removed.mp3`
-- **פלט (Elasticsearch):** עדכון `file_paths.vocals_removed`
-- **פלט (Kafka):** `{"video_id": "dQw4w9WgXcQ", "vocals_removed_path": "...", "status": "vocals_processed"}`
-
-### תקשורת:
-- ✅ **Elasticsearch:** עדכון מסמכים (הוספת נתיב קובץ)
-- ✅ **Kafka:** Consumer + Producer
-- ✅ **Shared Storage:** קריאה וכתיבה
-
----
-
-## 4. Transcription Service
-**תפקיד:** תמלול השיר ויצירת קובץ LRC
-
-### פונקציונליות:
-- האזנה ל-Kafka topic: `transcription.process.requested`
-- קריאת קובץ מקורי (עם ווקאל)
-- Speech-to-Text + Timestamp sync
-- יצירת קובץ LRC
-- **עדכון Elasticsearch עם נתיב הקובץ החדש**
-
-### זרימת עבודה מפורטת:
-1. קבלת הודעה מקפקא
-2. תמלול השיר ויצירת timestamps
-3. שמירת קובץ LRC
-4. **עדכון המסמך המתאים ב-Elasticsearch והוספת הנתיב תחת `file_paths.lyrics`**
-5. שליחת הודעה לקפקא על השלמת התמלול
-
-### קלט/פלט:
-- **קלט (Kafka):** `{"video_id": "dQw4w9WgXcQ", "original_path": "/shared/audio/.../original.mp3"}`
-- **קלט (File):** `/shared/audio/{video_id}/original.mp3`
-- **פלט (File):** `/shared/audio/{video_id}/lyrics.lrc`
-- **פלט (Elasticsearch):** עדכון `file_paths.lyrics`
-- **פלט (Kafka):** `{"video_id": "dQw4w9WgXcQ", "lyrics_path": "...", "status": "transcription_done"}`
-
-### תקשורת:
-- ✅ **Elasticsearch:** עדכון מסמכים (הוספת נתיב קובץ)
-- ✅ **Kafka:** Consumer + Producer
-- ✅ **Shared Storage:** קריאה וכתיבה
-
----
-
-## 5. Streamlit Client - דרישות פונקציונליות
-
-**תפקיד:** ממשק משתמש לחיפוש, הורדה ונגינת קריוקי
-
-### דרישות חיפוש והורדה:
-- ממשק חיפוש שירים (אינטגרציה עם `POST /search`)
-- בחירת שיר מרשימת תוצאות (אינטגרציה עם `POST /download`)
-- מעקב אחר סטטוס עיבוד השיר (polling על `GET /songs/{video_id}/status`)
-
-### דרישות נגן קריוקי:
-1. **טעינת קבצים:**
-   - טעינה ופענוח של קובץ שמע (.mp3) מ-`GET /songs/{video_id}/download`
-   - טעינה ופרסור של קובץ כתוביות (.lrc) 
-
-2. **נגינה וסנכרון:**
-   - **נגינת שמע:** בקרות play/pause/stop/seek
-   - **סנכרון כתוביות:** הצגת שורות הכתוביות בזמן אמת לפי timestamps מקובץ ה-LRC
-   - **הדגשה ויזואלית:** הדגשת השורה הפעילה, preview של השורה הבאה
-
-3. **ממשק משתמש:**
-   - הצגת מטא-דאטה: תמונת השיר, שם האמן, כותרת השיר
-   - בקרות נגן intuitive עם progress bar
-   - אזור הצגת כתוביות עם גלילה אוטומטית
-
-### תקשורת:
-- ✅ **API Server:** כל הבקשות דרך REST API
-- ❌ **גישה ישירה:** אין גישה ישירה לקפקא, אלסטיק או shared storage
-
----
-
-## Kafka Topics:
-
-1. `song.download.requested` - בקשות הורדה
-2. `song.downloaded` - הושלמה הורדה
-3. `audio.process.requested` - בקשות עיבוד אודיו
-4. `transcription.process.requested` - בקשות תמלול
-5. `audio.vocals_processed` - הושלם עיבוד אודיו
-6. `transcription.done` - הושלם תמלול
-
----
-
-## Elasticsearch Index: `songs`
-
-```json
-{
-  "_id": "dQw4w9WgXcQ",
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "artist": "Rick Astley",
-  "channel": "RickAstleyVEVO", 
-  "duration": 213,
-  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  "status": "processing", // downloading | processing | failed (לעולם לא "ready" ב-MVP)
-  "created_at": "2025-09-15T10:30:00Z",
-  "updated_at": "2025-09-15T10:35:00Z",
-  "file_paths": {
-    "original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-    "vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
-    "lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc"
-  },
-  "search_text": "rick astley never gonna give you up rickroll"
-}
+### 1. חיפוש שירים
+```
+User → Streamlit Client → API Server → YouTube Service → YouTube API
+                                    ← YouTube Service ← API Server ← Streamlit Client ← User
 ```
 
-**הערה:** ב-MVP, השדה `status` ישאר על `processing` גם כאשר השיר מוכן. זיהוי שירים מוכנים נעשה על ידי בדיקת קיום שני הקבצים `vocals_removed` ו-`lyrics`.
-
----
-
-## Shared Storage Structure:
-
+### 2. הורדה ועיבוד שיר
 ```
-/shared/audio/
-├── {video_id_1}/
-│   ├── original.mp3
-│   ├── vocals_removed.mp3  
-│   └── lyrics.lrc
-├── {video_id_2}/
-│   ├── original.mp3
-│   └── vocals_removed.mp3    # בתהליך...
-└── {video_id_3}/
-    └── original.mp3          # הורד זה עתה
+User → Streamlit Client → API Server → Elasticsearch (יצירת מסמך)
+                                    → Kafka (song.download.requested)
+                                    → YouTube Service → YTDLP + Elasticsearch
+                                    → Kafka (3 הודעות):
+                                      ├── song.downloaded (אירוע)
+                                      ├── audio.process.requested (פקודה)
+                                      └── transcription.process.requested (פקודה)
+
+Audio Processing Service ← Kafka ← YouTube Service
+Audio Processing Service → Shared Storage + Elasticsearch → Kafka (אירוע)
+
+Transcription Service ← Kafka ← YouTube Service
+Transcription Service → Shared Storage + Elasticsearch → Kafka (אירוע)
 ```
 
----
+### 3. נגינה וצריכה
+```
+User → Streamlit Client → API Server → Elasticsearch (בדיקת מוכנות)
+                                    → Shared Storage (קריאת קבצים)
+                                    → ZIP Creation
+                                    → Streamlit Client (הורדת ZIP)
+                                    → Local Player + LRC Parser
+```
 
-## חלוקת עבודה מוצעת:
+## עקרונות ארכיטקטורליים
 
-1. **Backend Developer #1:** API Server + Elasticsearch setup + לוגיקת "שירים מוכנים"
-2. **Backend Developer #2:** YouTube Service (חיפוש + הורדה במקום אחד)
-3. **Audio Engineer:** Audio Processing Service + אינטגרציה עם Elasticsearch
-4. **AI Developer:** Transcription Service + אינטגרציה עם Elasticsearch
-5. **Integration Developer:** Kafka setup ותיאום בין השירותים
-6. **Frontend Developer:** Streamlit Client
+### הפרדת אחריות (Separation of Concerns)
+- כל שירות מטפל בתחום פונקציונלי יחיד
+- אין חפיפה באחריות בין השירותים
+- מינימיזציה של תלויות בין שירותים
+
+### תקשורת אסינכרונית
+- שימוש ב-Kafka לתהליכים ארוכי טווח
+- HTTP רק לבקשות מיידיות (חיפוש, סטטוס)
+- אי-תלות בזמני תגובה של שירותים אחרים
+
+### מרכזיות נתונים
+- Elasticsearch כמקור אמת יחיד למטאדאטה
+- Shared Storage לכל הקבצים הפיזיים
+- אין שכפול נתונים בין שירותים
+
+### עמידות בכשל (Fault Tolerance)
+- כל שירות עצמאי ויכול לכשל בנפרד
+- שירותי consumer יכולים להתאושש ולעבד הודעות שהוחמצו
+- ניהול שגיאות ברמת השירות הבודד
+
+### ניטרול המורכבות
+- API Server מסתיר את המורכבות הפנימית מהלקוח
+- כל שירות חושף interface מינימלי ומוגדר בבירור
+- שירותי התשתית (Kafka, Elasticsearch) מנוהלים מרכזית

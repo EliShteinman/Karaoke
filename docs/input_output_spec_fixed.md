@@ -1,160 +1,82 @@
-# מפרט קלט ופלט - יישום קריוקי (גרסת MVP)
+# מפרט שרשרת קלט-פלט מלאה - מערכת קריוקי
 
-## 1. API Server
+## סקירה כוללת
+מסמך זה מתאר את השרשרת המלאה של קלט ופלט במערכת הקריוקי, החל מבקשת המשתמש ב-Streamlit ועד לקבלת קובץ ZIP מוכן עם קבצי הקריוקי. כל שלב מתואר עם הנתונים המדויקים שעוברים בין השירותים.
 
-### HTTP Endpoints:
+---
 
-#### `POST /search`
-**קלט:**
+## זרימה 1: חיפוש שירים
+
+### 1.1 קלט מהמשתמש
+**מקור:** Streamlit Client
+**יעד:** API Server
+**פרוטוקול:** HTTP POST
+
 ```json
+POST /search
+Content-Type: application/json
+
 {
   "query": "rick astley never gonna give you up"
 }
 ```
 
-**פלט:**
+### 1.2 העברה ל-YouTube Service
+**מקור:** API Server
+**יעד:** YouTube Service
+**פרוטוקול:** HTTP POST (פנימי)
+
+```json
+POST /internal/search
+Content-Type: application/json
+
+{
+  "query": "rick astley never gonna give you up"
+}
+```
+
+### 1.3 שאילתה ל-YouTube API
+**מקור:** YouTube Service
+**יעד:** YouTube Data API v3
+**פרוטוקול:** HTTPS GET
+
+```
+GET https://www.googleapis.com/youtube/v3/search
+?part=snippet
+&q=rick+astley+never+gonna+give+you+up
+&type=video
+&maxResults=10
+&key={API_KEY}
+```
+
+### 1.4 תגובה מ-YouTube API
+**מקור:** YouTube Data API v3
+**יעד:** YouTube Service
+
 ```json
 {
-  "results": [
+  "items": [
     {
-      "video_id": "dQw4w9WgXcQ",
-      "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
-      "channel": "RickAstleyVEVO",
-      "duration": 213,
-      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-      "published_at": "2009-10-25T09:57:33Z"
+      "id": {"videoId": "dQw4w9WgXcQ"},
+      "snippet": {
+        "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
+        "channelTitle": "RickAstleyVEVO",
+        "publishedAt": "2009-10-25T09:57:33Z",
+        "thumbnails": {
+          "maxresdefault": {
+            "url": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+          }
+        }
+      }
     }
   ]
 }
 ```
 
-#### `POST /download`
-**קלט:**
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "channel": "RickAstleyVEVO",
-  "duration": 213,
-  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
-}
-```
+### 1.5 תגובה מעובדת ל-API Server
+**מקור:** YouTube Service
+**יעד:** API Server
 
-**פעולות פנימיות:**
-1. **יצירת מסמך באלסטיק:**
-```json
-{
-  "_id": "dQw4w9WgXcQ",
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "artist": "Rick Astley",
-  "channel": "RickAstleyVEVO",
-  "duration": 213,
-  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  "status": "downloading",
-  "created_at": "2025-09-15T10:30:00Z",
-  "file_paths": {},
-  "search_text": "rick astley never gonna give you up"
-}
-```
-
-2. **שליחה לקפקא:**
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "channel": "RickAstleyVEVO",
-  "duration": 213,
-  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  "action": "download"
-}
-```
-
-**פלט:**
-```json
-{
-  "status": "accepted",
-  "video_id": "dQw4w9WgXcQ",
-  "message": "Song queued for processing"
-}
-```
-
-#### `GET /songs`
-**קלט:** None
-
-**לוגיקת שאילתה מעודכנת (Elasticsearch):**
-```json
-{
-  "query": {
-    "bool": {
-      "must": [
-        {"exists": {"field": "file_paths.vocals_removed"}},
-        {"exists": {"field": "file_paths.lyrics"}},
-        {"bool": {"must_not": [
-          {"term": {"file_paths.vocals_removed": ""}},
-          {"term": {"file_paths.lyrics": ""}}
-        ]}}
-      ]
-    }
-  }
-}
-```
-
-**פלט:**
-```json
-{
-  "songs": [
-    {
-      "video_id": "dQw4w9WgXcQ",
-      "title": "Rick Astley - Never Gonna Give You Up",
-      "artist": "Rick Astley",
-      "status": "processing", 
-      "created_at": "2025-09-15T10:30:00Z",
-      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-      "duration": 213,
-      "files_ready": true
-    }
-  ]
-}
-```
-
-#### `GET /songs/{video_id}/status`
-**קלט:** video_id בURL
-
-**פלט:**
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "status": "processing", // downloading | processing | failed (לא "ready" ב-MVP)
-  "progress": {
-    "download": true,
-    "audio_processing": true,
-    "transcription": true,
-    "files_ready": true
-  }
-}
-```
-
-#### `GET /songs/{video_id}/download`
-**קלט:** video_id בURL
-
-**פלט:** ZIP עם הקבצים:
-- `vocals_removed.mp3` (מוזיקה ללא ווקאל)
-- `lyrics.lrc` (כתוביות עם timestamps)
-
----
-
-## 2. YouTube Service
-
-### פונקציה 1: חיפוש
-
-**קלט (מ-API Server):**
-```json
-{
-  "query": "rick astley never gonna"
-}
-```
-
-**פלט (ל-API Server):**
 ```json
 {
   "results": [
@@ -171,9 +93,78 @@
 }
 ```
 
-### פונקציה 2: הורדה
+### 1.6 תגובה למשתמש
+**מקור:** API Server
+**יעד:** Streamlit Client
 
-**קלט (מ-API Server דרך Kafka):**
+```json
+HTTP 200 OK
+Content-Type: application/json
+
+{
+  "results": [
+    {
+      "video_id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
+      "channel": "RickAstleyVEVO",
+      "duration": 213,
+      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "published_at": "2009-10-25T09:57:33Z"
+    }
+  ]
+}
+```
+
+---
+
+## זרימה 2: בקשת הורדה ועיבוד
+
+### 2.1 בקשת הורדה מהמשתמש
+**מקור:** Streamlit Client
+**יעד:** API Server
+**פרוטוקול:** HTTP POST
+
+```json
+POST /download
+Content-Type: application/json
+
+{
+  "video_id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "channel": "RickAstleyVEVO",
+  "duration": 213,
+  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+}
+```
+
+### 2.2 יצירת מסמך ב-Elasticsearch
+**מקור:** API Server
+**יעד:** Elasticsearch
+**פרוטוקול:** HTTP PUT
+
+```json
+PUT /songs/_doc/dQw4w9WgXcQ
+Content-Type: application/json
+
+{
+  "_id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "artist": "Rick Astley",
+  "channel": "RickAstleyVEVO",
+  "duration": 213,
+  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+  "status": "downloading",
+  "created_at": "2025-09-15T10:30:00Z",
+  "updated_at": "2025-09-15T10:30:00Z",
+  "file_paths": {},
+  "search_text": "rick astley never gonna give you up"
+}
+```
+
+### 2.3 שליחה לטופיק Kafka
+**מקור:** API Server
+**יעד:** Kafka Topic `song.download.requested`
+
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
@@ -181,359 +172,507 @@
   "channel": "RickAstleyVEVO",
   "duration": 213,
   "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  "action": "download"
+  "action": "download",
+  "timestamp": "2025-09-15T10:30:00Z"
 }
 ```
 
-**פלט (קובץ):**
-- מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
-- פורמט: MP3, 44.1kHz, stereo
+### 2.4 תגובה למשתמש
+**מקור:** API Server
+**יעד:** Streamlit Client
 
-**פלט (ל-Kafka - 3 הודעות):**
-
-**הודעה 1 - אירוע סיום הורדה:**
 ```json
-{
-  "topic": "song.downloaded",
-  "message": {
-    "video_id": "dQw4w9WgXcQ",
-    "status": "downloaded",
-    "file_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-    "metadata": {
-      "duration": 213,
-      "bitrate": 128,
-      "sample_rate": 44100,
-      "file_size": 3456789
-    }
-  }
-}
-```
+HTTP 202 Accepted
+Content-Type: application/json
 
-**הודעה 2 - פקודת עיבוד אודיו:**
-```json
 {
-  "topic": "audio.process.requested",
-  "message": {
-    "video_id": "dQw4w9WgXcQ",
-    "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-    "action": "remove_vocals"
-  }
-}
-```
-
-**הודעה 3 - פקודת תמלול:**
-```json
-{
-  "topic": "transcription.process.requested", 
-  "message": {
-    "video_id": "dQw4w9WgXcQ",
-    "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-    "action": "transcribe"
-  }
+  "status": "accepted",
+  "video_id": "dQw4w9WgXcQ",
+  "message": "Song queued for processing"
 }
 ```
 
 ---
 
-## 3. Audio Processing Service
+## זרימה 3: הורדה מיוטיוב
 
-**קלט (מ-Kafka):**
+### 3.1 קבלת הודעה מ-Kafka
+**מקור:** Kafka Topic `song.download.requested`
+**יעד:** YouTube Service
+
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "channel": "RickAstleyVEVO",
+  "duration": 213,
+  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+  "action": "download",
+  "timestamp": "2025-09-15T10:30:00Z"
+}
+```
+
+### 3.2 הורדה עם YTDLP
+**מקור:** YouTube Service
+**יעד:** YouTube/Shared Storage
+**תהליך:** הרצת YTDLP command
+
+```bash
+yt-dlp "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \
+  --extract-audio \
+  --audio-format mp3 \
+  --audio-quality 128K \
+  --output "/shared/audio/%(id)s/original.%(ext)s"
+```
+
+**תוצר:** קובץ `/shared/audio/dQw4w9WgXcQ/original.mp3`
+
+### 3.3 עדכון Elasticsearch
+**מקור:** YouTube Service
+**יעד:** Elasticsearch
+
+```json
+POST /songs/_update/dQw4w9WgXcQ
+Content-Type: application/json
+
+{
+  "doc": {
+    "file_paths.original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+    "status": "processing",
+    "updated_at": "2025-09-15T10:32:15Z",
+    "metadata": {
+      "original_size": 3456789,
+      "download_time": 45.2,
+      "source_quality": "128kbps"
+    }
+  }
+}
+```
+
+### 3.4 שליחת 3 הודעות Kafka
+**מקור:** YouTube Service
+**יעד:** Kafka
+
+#### הודעה 1: אירוע סיום הורדה
+**Topic:** `song.downloaded`
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "status": "downloaded",
+  "file_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+  "metadata": {
+    "duration": 213,
+    "bitrate": 128,
+    "sample_rate": 44100,
+    "file_size": 3456789,
+    "format": "mp3"
+  },
+  "timestamp": "2025-09-15T10:32:15Z"
+}
+```
+
+#### הודעה 2: פקודת עיבוד אודיו
+**Topic:** `audio.process.requested`
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
   "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-  "action": "remove_vocals"
+  "action": "remove_vocals",
+  "timestamp": "2025-09-15T10:32:16Z"
 }
 ```
 
-**קלט (קובץ):**
-- מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
-
-**פלט (קובץ):**
-- מיקום: `/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3`
-- פורמט: MP3, 44.1kHz, stereo (ללא ווקאל)
-
-**פלט (עדכון Elasticsearch):**
+#### הודעה 3: פקודת תמלול
+**Topic:** `transcription.process.requested`
 ```json
 {
-  "_id": "dQw4w9WgXcQ",
-  "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
-  "updated_at": "2025-09-15T10:33:45Z"
+  "video_id": "dQw4w9WgXcQ",
+  "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+  "action": "transcribe",
+  "timestamp": "2025-09-15T10:32:17Z"
 }
 ```
 
-**פלט (ל-Kafka):**
+---
+
+## זרימה 4: עיבוד אודיו (הסרת ווקאל)
+
+### 4.1 קבלת הודעה מ-Kafka
+**מקור:** Kafka Topic `audio.process.requested`
+**יעד:** Audio Processing Service
+
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+  "action": "remove_vocals",
+  "timestamp": "2025-09-15T10:32:16Z"
+}
+```
+
+### 4.2 קריאת קובץ מקורי
+**מקור:** Audio Processing Service
+**יעד:** Shared Storage
+**פעולה:** קריאת `/shared/audio/dQw4w9WgXcQ/original.mp3`
+
+### 4.3 עיבוד ושמירת קובץ מעובד
+**תהליך:** Center Channel Extraction אלגוריתם
+**תוצר:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3`
+
+### 4.4 עדכון Elasticsearch
+**מקור:** Audio Processing Service
+**יעד:** Elasticsearch
+
+```json
+POST /songs/_update/dQw4w9WgXcQ
+Content-Type: application/json
+
+{
+  "doc": {
+    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
+    "updated_at": "2025-09-15T10:33:45Z",
+    "processing_metadata.audio": {
+      "processing_time": 45.2,
+      "quality_score": 0.85,
+      "algorithm": "center_channel_extraction",
+      "original_size": 3456789,
+      "processed_size": 3123456
+    }
+  }
+}
+```
+
+### 4.5 שליחת אירוע סיום
+**מקור:** Audio Processing Service
+**יעד:** Kafka Topic `audio.vocals_processed`
+
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
   "status": "vocals_processed",
   "vocals_removed_path": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
   "processing_time": 45.2,
-  "quality_score": 0.85
+  "quality_score": 0.85,
+  "algorithm_used": "center_channel_extraction",
+  "metadata": {
+    "original_size": 3456789,
+    "processed_size": 3123456,
+    "compression_ratio": 0.904,
+    "snr_improvement": 12.3
+  },
+  "timestamp": "2025-09-15T10:33:45Z"
 }
 ```
 
 ---
 
-## 4. Transcription Service
+## זרימה 5: תמלול וכתוביות
 
-**קלט (מ-Kafka):**
+### 5.1 קבלת הודעה מ-Kafka
+**מקור:** Kafka Topic `transcription.process.requested`
+**יעד:** Transcription Service
+
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
   "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-  "action": "transcribe"
+  "action": "transcribe",
+  "timestamp": "2025-09-15T10:32:17Z"
 }
 ```
 
-**קלט (קובץ):**
-- מיקום: `/shared/audio/dQw4w9WgXcQ/original.mp3`
+### 5.2 תמלול עם Whisper
+**תהליך:** Speech-to-Text עם Whisper Large v3
+**קלט:** `/shared/audio/dQw4w9WgXcQ/original.mp3`
 
-**פלט (קובץ LRC):**
-- מיקום: `/shared/audio/dQw4w9WgXcQ/lyrics.lrc`
-- פורמט:
+### 5.3 יצירת קובץ LRC
+**תוצר:** `/shared/audio/dQw4w9WgXcQ/lyrics.lrc`
+
 ```lrc
 [ar:Rick Astley]
 [ti:Never Gonna Give You Up]
+[al:Whenever You Need Somebody]
+[au:Rick Astley]
+[length:03:33]
+[by:transcription_service]
+[offset:0]
+
 [00:00.50]We're no strangers to love
 [00:04.15]You know the rules and so do I
 [00:08.20]A full commitment's what I'm thinking of
 [00:12.50]You wouldn't get this from any other guy
+[00:16.80]I just wanna tell you how I'm feeling
+[00:20.90]Gotta make you understand
+[00:25.50]Never gonna give you up
+[00:27.85]Never gonna let you down
+[00:30.20]Never gonna run around and desert you
 ```
 
-**פלט (עדכון Elasticsearch):**
-```json
-{
-  "_id": "dQw4w9WgXcQ",
-  "file_paths.lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
-  "updated_at": "2025-09-15T10:34:12Z"
-}
-```
-
-**פלט (ל-Kafka):**
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "status": "transcription_done", 
-  "lyrics_path": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
-  "language": "en",
-  "confidence": 0.92,
-  "word_count": 156,
-  "processing_time": 32.1
-}
-```
-
----
-
-## 5. Streamlit Client - מפרט קלט/פלט
-
-### חיפוש שירים:
-**קלט מהמשתמש:** שאילתת חיפוש טקסט
-**פלט למשתמש:** רשימת תוצאות עם thumbnails וכפתור "הורד"
-
-### בחירת שיר להורדה:
-**קלט מהמשתמש:** לחיצה על כפתור "הורד" 
-**פלט למשתמש:** הודעת אישור וכפתור "עבור לנגן"
-
-### מעקב אחר סטטוס:
-**פעולה:** polling כל 5 שניות על API
-**לוגיקה:** בדיקה של `progress.files_ready === true`
-**פלט למשתמש:** progress bar עם שלבי העיבוד
-
-### נגן קריוקי:
-
-**קלט:**
-- ZIP עם קבצים מ-`GET /songs/{video_id}/download`
-- מטא-דאטה מ-`GET /songs/{video_id}/status`
-
-**פעולות עיבוד:**
-```python
-# פרסור קובץ LRC
-def parse_lrc(lrc_content):
-    lines = []
-    for line in lrc_content.split('\n'):
-        if '[' in line and ']' in line:
-            timestamp = extract_timestamp(line)  # [00:12.50] -> 12.5 seconds
-            text = extract_text(line)            # "You wouldn't get this..."
-            lines.append((timestamp, text))
-    return lines
-
-# סנכרון כתוביות
-def sync_lyrics(current_time, lyrics_lines):
-    active_line = find_current_line(current_time, lyrics_lines)
-    next_line = find_next_line(current_time, lyrics_lines)
-    return active_line, next_line
-```
-
-**פלט למשתמש:**
-- נגן אודיו עם בקרות play/pause/seek
-- הצגת כתוביות מסונכרנות
-- הדגשת השורה הפעילה
-- תצוגת מטא-דאטה (כותרת, אמן, תמונה)
-
----
-
-## Kafka Topics Structure:
-
-### Topic: `song.download.requested`
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "action": "download",
-  "timestamp": "2025-09-15T10:30:00Z"
-}
-```
-
-### Topic: `song.downloaded`
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "status": "downloaded",
-  "file_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-  "timestamp": "2025-09-15T10:32:15Z"
-}
-```
-
-### Topic: `audio.process.requested`
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-  "action": "remove_vocals"
-}
-```
-
-### Topic: `transcription.process.requested`
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "original_path": "/shared/audio/dQw4w9WgXcQ/original.mp3", 
-  "action": "transcribe"
-}
-```
-
-### Topic: `audio.vocals_processed`
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "status": "vocals_processed",
-  "vocals_removed_path": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3"
-}
-```
-
-### Topic: `transcription.done`
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "status": "transcription_done",
-  "lyrics_path": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc"
-}
-```
-
----
-
-## Elasticsearch Document Structure:
-
-### Index: `songs`
+### 5.4 עדכון Elasticsearch
+**מקור:** Transcription Service
+**יעד:** Elasticsearch
 
 ```json
+POST /songs/_update/dQw4w9WgXcQ
+Content-Type: application/json
+
 {
-  "_id": "dQw4w9WgXcQ",
-  "title": "Rick Astley - Never Gonna Give You Up",
-  "artist": "Rick Astley", 
-  "channel": "RickAstleyVEVO",
-  "duration": 213,
-  "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  "status": "processing",
-  "created_at": "2025-09-15T10:30:00Z",
-  "updated_at": "2025-09-15T10:35:30Z",
-  "file_paths": {
-    "original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-    "vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
-    "lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc"
-  },
-  "metadata": {
-    "original_size": 3456789,
-    "total_processing_time": 123.7,
-    "quality_scores": {
-      "audio_processing": 0.85,
-      "transcription": 0.92
+  "doc": {
+    "file_paths.lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
+    "updated_at": "2025-09-15T10:34:12Z",
+    "processing_metadata.transcription": {
+      "processing_time": 32.1,
+      "confidence_score": 0.92,
+      "language_detected": "en",
+      "word_count": 156,
+      "line_count": 32,
+      "model_used": "whisper-large-v3"
     }
-  },
-  "search_text": "rick astley never gonna give you up rickroll official video"
-}
-```
-
-**הערה MVP:** השדה `status` ישאר על `processing` גם כאשר השיר מוכן. זיהוי שירים מוכנים נעשה על ידי בדיקת קיום שני השדות `vocals_removed` ו-`lyrics` ב-`file_paths`.
-
----
-
-## Error Handling:
-
-### שגיאות שכל שירות יכול להחזיר:
-
-```json
-{
-  "video_id": "dQw4w9WgXcQ",
-  "status": "failed",
-  "error": {
-    "code": "DOWNLOAD_FAILED", 
-    "message": "Video not available in your region",
-    "timestamp": "2025-09-15T10:32:00Z",
-    "service": "youtube_service"
   }
 }
 ```
 
-### קודי שגיאה אפשריים:
-- `DOWNLOAD_FAILED` - כשל בהורדה מיוטיוב
-- `AUDIO_PROCESSING_FAILED` - כשל בהסרת ווקאל
-- `TRANSCRIPTION_FAILED` - כשל בתמלול
-- `FILE_NOT_FOUND` - קובץ לא נמצא
-- `INVALID_FORMAT` - פורמט קובץ לא נתמך
-- `ELASTICSEARCH_ERROR` - כשל בעדכון מטאדאטה
+### 5.5 שליחת אירוע סיום
+**מקור:** Transcription Service
+**יעד:** Kafka Topic `transcription.done`
+
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "status": "transcription_done",
+  "lyrics_path": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
+  "language": "en",
+  "confidence": 0.92,
+  "word_count": 156,
+  "line_count": 32,
+  "processing_time": 32.1,
+  "model_used": "whisper-large-v3",
+  "metadata": {
+    "silence_detection": true,
+    "background_noise_level": 0.05,
+    "vocal_clarity": 0.88,
+    "timestamps_accuracy": 0.91
+  },
+  "timestamp": "2025-09-15T10:34:12Z"
+}
+```
 
 ---
 
-## דוגמאות זרימה מלאה (MVP):
+## זרימה 6: בדיקת סטטוס (Polling)
 
-### זרימה מוצלחת:
+### 6.1 בקשת סטטוס מהמשתמש
+**מקור:** Streamlit Client (כל 5 שניות)
+**יעד:** API Server
+**פרוטוקול:** HTTP GET
+
 ```
-1. Streamlit → API: POST /download {"video_id": "dQw4w9WgXcQ"}
-2. API → Elasticsearch: Create document with status="downloading"
-3. API → Kafka: song.download.requested
-4. YouTube Service → File System: Download original.mp3
-5. YouTube Service → Kafka: song.downloaded (Event)
-6. YouTube Service → Kafka: audio.process.requested (Command)
-7. YouTube Service → Kafka: transcription.process.requested (Command)
-8. Audio Service → File System: Create vocals_removed.mp3
-9. Audio Service → Elasticsearch: Update file_paths.vocals_removed
-10. Audio Service → Kafka: audio.vocals_processed
-11. Transcription Service → File System: Create lyrics.lrc
-12. Transcription Service → Elasticsearch: Update file_paths.lyrics
-13. Transcription Service → Kafka: transcription.done
-14. Streamlit polling → API: GET /songs → finds song via file_paths query
-15. Streamlit → API: GET /songs/{video_id}/download → Download ZIP with both files
+GET /songs/dQw4w9WgXcQ/status
 ```
 
-### זרימה עם שגיאה:
-```
-1-7. [כמו למעלה]
-8. Audio Service → Kafka: {"status": "failed", "error": "AUDIO_PROCESSING_FAILED"}
-9. Audio Service → Elasticsearch: Update status="failed"
-10. Streamlit polling → API: GET /songs/{video_id}/status → {"status": "failed"}
+### 6.2 שאילתה ל-Elasticsearch
+**מקור:** API Server
+**יעד:** Elasticsearch
+
+```json
+GET /songs/_doc/dQw4w9WgXcQ
 ```
 
-### בדיקת קובץ מוכן ב-API Server:
+### 6.3 תגובת Elasticsearch
+**מקור:** Elasticsearch
+**יעד:** API Server
+
+```json
+{
+  "_source": {
+    "video_id": "dQw4w9WgXcQ",
+    "title": "Rick Astley - Never Gonna Give You Up",
+    "status": "processing",
+    "file_paths": {
+      "original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+      "vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
+      "lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc"
+    },
+    "processing_metadata": {
+      "audio": {"quality_score": 0.85},
+      "transcription": {"confidence_score": 0.92}
+    }
+  }
+}
+```
+
+### 6.4 תגובה למשתמש
+**מקור:** API Server
+**יעד:** Streamlit Client
+
+```json
+HTTP 200 OK
+Content-Type: application/json
+
+{
+  "video_id": "dQw4w9WgXcQ",
+  "status": "processing",
+  "progress": {
+    "download": true,
+    "audio_processing": true,
+    "transcription": true,
+    "files_ready": true
+  }
+}
+```
+
+---
+
+## זרימה 7: הורדת קבצי קריוקי מוכנים
+
+### 7.1 רשימת שירים מוכנים
+**מקור:** Streamlit Client
+**יעד:** API Server
+
+```
+GET /songs
+```
+
+### 7.2 שאילתה מתקדמת ל-Elasticsearch
+**מקור:** API Server
+**יעד:** Elasticsearch
+
+```json
+POST /songs/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "bool": {
+      "must": [
+        {"exists": {"field": "file_paths.vocals_removed"}},
+        {"exists": {"field": "file_paths.lyrics"}},
+        {"bool": {"must_not": [
+          {"term": {"file_paths.vocals_removed": ""}},
+          {"term": {"file_paths.lyrics": ""}}
+        ]}}
+      ]
+    }
+  }
+}
+```
+
+### 7.3 תגובה עם שירים מוכנים
+**מקור:** API Server
+**יעד:** Streamlit Client
+
+```json
+{
+  "songs": [
+    {
+      "video_id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "status": "processing",
+      "created_at": "2025-09-15T10:30:00Z",
+      "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "duration": 213,
+      "files_ready": true
+    }
+  ]
+}
+```
+
+### 7.4 בקשת הורדת קבצים
+**מקור:** Streamlit Client
+**יעד:** API Server
+
+```
+GET /songs/dQw4w9WgXcQ/download
+```
+
+### 7.5 קריאת קבצים מ-Shared Storage
+**מקור:** API Server
+**יעד:** Shared Storage
+
+- **קריאת:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3`
+- **קריאת:** `/shared/audio/dQw4w9WgXcQ/lyrics.lrc`
+
+### 7.6 יצירת וחזרת קובץ ZIP
+**מקור:** API Server
+**יעד:** Streamlit Client
+**פרוטוקול:** HTTP Response
+
+```
+HTTP 200 OK
+Content-Type: application/zip
+Content-Disposition: attachment; filename="dQw4w9WgXcQ-karaoke.zip"
+
+[Binary ZIP Data containing:]
+├── vocals_removed.mp3    # Audio without vocals
+└── lyrics.lrc           # Synchronized lyrics
+```
+
+---
+
+## זרימה 8: נגינה בלקוח
+
+### 8.1 חילוץ קבצי ZIP
+**מקום:** Streamlit Client (מקומי)
+**תהליך:**
+- חילוץ `vocals_removed.mp3`
+- חילוץ `lyrics.lrc`
+
+### 8.2 פרסור קובץ LRC
+**תהליך:** המרה למבנה נתונים פנימי
+
 ```python
-# פסאודו-קוד לבדיקת שיר מוכן
-def is_song_ready(video_id):
-    doc = elasticsearch.get(index="songs", id=video_id)
-    return (
-        doc["file_paths"].get("vocals_removed") and 
-        doc["file_paths"].get("lyrics") and
-        doc["file_paths"]["vocals_removed"] != "" and
-        doc["file_paths"]["lyrics"] != ""
-    )
+lyrics_data = [
+    {
+        "timestamp": 0.5,
+        "text": "We're no strangers to love",
+        "duration": 3.65
+    },
+    {
+        "timestamp": 4.15,
+        "text": "You know the rules and so do I",
+        "duration": 4.05
+    }
+]
 ```
+
+### 8.3 נגינה וסנכרון
+**תהליך מתמשך:**
+- הפעלת קובץ האודיו
+- מעקב אחר זמן נוכחי (כל 100ms)
+- סנכרון הצגת כתוביות
+- הדגשת שורה פעילה
+- גלילה אוטומטית
+
+---
+
+## סיכום זרימת הנתונים המלאה
+
+```
+1. User Search Query → Streamlit → API Server → YouTube Service → YouTube API
+                                                            ← YouTube Service ← API Server ← Streamlit ← User
+
+2. User Download Request → Streamlit → API Server → Elasticsearch (create)
+                                                  → Kafka (download.requested)
+                                                  → YouTube Service → YTDLP → Shared Storage
+                                                                   → Elasticsearch (update)
+                                                                   → Kafka (3 messages)
+
+3. Parallel Processing:
+   Audio Service ← Kafka ← YouTube Service
+   Audio Service → Shared Storage + Elasticsearch → Kafka (vocals_processed)
+
+   Transcription Service ← Kafka ← YouTube Service
+   Transcription Service → Shared Storage + Elasticsearch → Kafka (transcription_done)
+
+4. Status Polling: User → Streamlit → API Server → Elasticsearch → API Server → Streamlit → User
+
+5. Download Ready Files: User → Streamlit → API Server → Elasticsearch (query ready)
+                                                       → Shared Storage (read files)
+                                                       → ZIP creation
+                                                       → Streamlit ← User
+
+6. Local Playback: Streamlit → ZIP extract → Audio Player + LRC Parser → Synchronized Karaoke
+```
+
+זרימה זו מבטיחה עקביות, אמינות ואסינכרוניות מלאה בין כל רכיבי המערכת, כאשר כל שירות אחראי על התחום הספציפי שלו בלבד.
