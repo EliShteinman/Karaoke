@@ -1,148 +1,96 @@
-version: '3.8'
+name: Karaoke
 
 services:
-  # Infrastructure Services
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
-    hostname: zookeeper
-    container_name: zookeeper
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-
-  kafka:
-    image: confluentinc/cp-kafka:7.4.0
-    hostname: kafka
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "29092:29092"
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.2
+    restart: unless-stopped
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
+    networks:
+      - elastic_kafka
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.1.2
+    restart: unless-stopped
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    networks:
+      - elastic_kafka
     volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
+      - kibana_data:/usr/share/kibana/data
+      - kibana_config:/usr/share/kibana/config
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
-  mongodb:
-    image: mongo:7.0
-    container_name: mongodb
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    networks:
+      - elastic_kafka
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: password
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
 
-  redis:
-    image: redis:7.2-alpine
-    container_name: redis
+  broker:
+    image: confluentinc/cp-kafka:7.2.15
+    networks:
+      - elastic_kafka
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-
-  # HebKaraoke Services
-  downloader:
-    build:
-      context: ./services/downloader
-      dockerfile: Dockerfile
-    container_name: hebkaraoke-downloader
-    ports:
-      - "8000:8000"
+      - "9092:9092"
+      - "9093:9093"
     depends_on:
-      - kafka
-      - mongodb
-      - elasticsearch
+      - zookeeper
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - MONGODB_URL=mongodb://root:password@mongodb:27017
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LISTENERS: PLAINTEXT_INTERNAL://0.0.0.0:29092,PLAINTEXT_C://0.0.0.0:9093,PLAINTEXT_L://0.0.0.0:9092,
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT_INTERNAL://broker:29092,PLAINTEXT_L://localhost:9092,PLAINTEXT_C://broker:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT_INTERNAL:PLAINTEXT,PLAINTEXT_L:PLAINTEXT,PLAINTEXT_C:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
 
-  processor:
-    build:
-      context: ./services/processor
-      dockerfile: Dockerfile
-    container_name: hebkaraoke-processor
-    ports:
-      - "8001:8001"
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    networks:
+      - elastic_kafka
     depends_on:
-      - kafka
-      - mongodb
+      - broker
+    ports:
+      - "7777:8080"
+    restart: always
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - MONGODB_URL=mongodb://root:password@mongodb:27017
+      - KAFKA_CLUSTERS_0_NAME=broker
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=broker:9093
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
 
-  transcriber:
-    build:
-      context: ./services/transcriber
-      dockerfile: Dockerfile
-    container_name: hebkaraoke-transcriber
-    ports:
-      - "8002:8002"
-    depends_on:
-      - kafka
-      - mongodb
-      - elasticsearch
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - MONGODB_URL=mongodb://root:password@mongodb:27017
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
 
-  lrc-generator:
-    build:
-      context: ./services/lrc-generator
-      dockerfile: Dockerfile
-    container_name: hebkaraoke-lrc-generator
-    ports:
-      - "8003:8003"
-    depends_on:
-      - kafka
-      - mongodb
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - MONGODB_URL=mongodb://root:password@mongodb:27017
-
-  ui:
-    build:
-      context: ./services/ui
-      dockerfile: Dockerfile
-    container_name: hebkaraoke-ui
-    ports:
-      - "8501:8501"
-    depends_on:
-      - kafka
-      - mongodb
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - MONGODB_URL=mongodb://root:password@mongodb:27017
 
 volumes:
-  elasticsearch_data:
-  mongodb_data:
-  redis_data:
+  elasticsearch:
+  kibana_data:
+  kibana_config:
 
 networks:
-  default:
-    name: hebkaraoke-network
+  elastic_kafka:
+    driver: bridge
