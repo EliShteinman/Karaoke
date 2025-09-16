@@ -1,5 +1,10 @@
+"""
+Text processing utilities for transcription service
+"""
 import re
+
 from unidecode import unidecode
+
 
 def clean_text(text: str) -> str:
     text = text.strip()
