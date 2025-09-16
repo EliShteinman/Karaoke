@@ -1,30 +1,29 @@
+import re
 from dataclasses import dataclass
-timestamp: float
-text: str
 
+@dataclass
+class LrcLine:
+    timestamp: float
+    text: str
 
-def parse_lrc(lrc_text: str):
+def parse_lrc(lrc_content: str) -> list[LrcLine]:
+    """Parses a .lrc file content into a list of timed lyric lines."""
     lines = []
-    for raw in lrc_text.splitlines():
-        raw = raw.strip()
-        if not raw:
+    # Regex to capture [mm:ss.xx] timestamps and the lyric text
+    lrc_regex = re.compile(r"^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)$")
+
+    for line in lrc_content.splitlines():
+        match = lrc_regex.match(line)
+        if not match:
             continue
-        try:
-            if raw.startswith("["):
-                parts = raw.split("]")
-                for p in parts[:-1]:
-                    ts = p.strip("[")
-                    if ":" in ts:
-                        mm, ss = ts.split(":")
-                        sec = 0.0
-                        if "." in ss:
-                            s, ms = ss.split(".")
-                            sec = int(mm) * 60 + int(s) + float("0." + ms)
-                        else:
-                            sec = int(mm) * 60 + int(ss)
-                        text = parts[-1].strip()
-                        lines.append(LrcLine(timestamp=sec, text=text))
-        except Exception:
-            continue
-    lines.sort(key=lambda x: x.timestamp)
-    return lines
+
+        minutes, seconds, centiseconds, text = match.groups()
+        # Pad centiseconds if they are 2 digits (e.g., .12 -> .120)
+        if len(centiseconds) == 2:
+            centiseconds += '0'
+        
+        total_seconds = int(minutes) * 60 + int(seconds) + int(centiseconds) / 1000.0
+        
+        lines.append(LrcLine(timestamp=total_seconds, text=text.strip()))
+
+    return sorted(lines, key=lambda x: x.timestamp)
