@@ -37,7 +37,7 @@ class YouTubeDownloadService:
             async_mode=False  # Use sync repository for YouTube service
         )
         self.kafka_producer = KafkaProducerSync(bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS)
-        self.file_manager = create_file_manager(storage_type="volume", base_path="./data")
+        self.file_manager = create_file_manager(storage_type="volume", base_path=str(self.base_path))
 
         self.logger.info("YouTubeDownloadService initialized with shared services")
 
@@ -69,7 +69,7 @@ class YouTubeDownloadService:
             self._update_document_after_download(video_id, file_path)
 
             # Step 4: Send Kafka messages
-            self._send_kafka_messages(video_id, file_path)
+            self._send_kafka_messages(video_id, file_path, duration)
 
             self.logger.info(f"Download workflow completed successfully for video_id='{video_id}'")
             return DownloadResponse(
@@ -191,7 +191,7 @@ class YouTubeDownloadService:
             self.logger.error(f"Failed to update document after download for video_id='{video_id}': {e}")
             raise
 
-    def _send_kafka_messages(self, video_id: str, file_path: str) -> None:
+    def _send_kafka_messages(self, video_id: str, file_path: str, duration: int) -> None:
         """Send 3 Kafka messages as specified in schema"""
         try:
             self.logger.info(f"Sending Kafka messages for video_id='{video_id}'")
@@ -204,7 +204,7 @@ class YouTubeDownloadService:
                 video_id=video_id,
                 status="downloaded",
                 metadata={
-                    "duration": 0,  # Could be extracted from YTDLP if needed
+                    "duration": duration,
                     "bitrate": 128,
                     "sample_rate": 44100,
                     "file_size": file_size,
