@@ -111,6 +111,9 @@ async def create_song_zip_file(video_id: str) -> Optional[str]:
     # for file_type in required_files:
     #     file_path = file_paths.get(file_type)
     #     if not file_path or not os.path.exists(file_path):
+    #         logger.error(f"Service: Required file {file_type} not found at {file_path}")
+    #     return None
+
 
     # This part is purely for demonstration so the zipfile has content.
     # In a real app, you would use the actual file paths from the song_doc.
