@@ -1,0 +1,13 @@
+# FastAPI framework and server
+fastapi
+uvicorn[standard]
+
+# For settings management and data validation
+pydantic
+pydantic-settings
+
+# For making HTTP requests to other services
+httpx
+
+# Dependency for the shared logger and direct ES access
+elasticsearch[async]
