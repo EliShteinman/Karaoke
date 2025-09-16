@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .core.config import settings
+from .config import settings
 from .api.routers import songs, youtube
 from shared.utils.logger import Logger
 
@@ -16,8 +16,8 @@ logger.info("API Server starting up...")
 
 # Include the routers
 # All routes from the songs router will be prefixed with /api/v1
-app.include_router(songs.router, prefix=settings.API_V1_STR, tags=["Songs"])
-app.include_router(youtube.router, prefix=settings.API_V1_STR, tags=["YouTube"])
+app.include_router(songs.router, prefix=settings.api_v1_str, tags=["Songs"])
+app.include_router(youtube.router, prefix=settings.api_v1_str, tags=["YouTube"])
 
 @app.get("/health", tags=["Health"])
 def health_check():
