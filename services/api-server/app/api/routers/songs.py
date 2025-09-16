@@ -1,7 +1,5 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-
-# Corrected and simplified relative imports
 from ...models import schemas
 from ...services import songs as songs_service
 from shared.utils.logger import Logger
