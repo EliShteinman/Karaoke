@@ -62,3 +62,17 @@ class RepositoryFactory:
             songs_index=songs_index,
             async_mode=async_mode
         )
+
+
+# Convenience function for easy import
+def create_song_repository(async_mode: bool = True) -> Union[SongRepository, SongRepositorySync]:
+    """
+    Create a song repository with default configuration
+    """
+    return RepositoryFactory.create_song_repository_from_params(
+        elasticsearch_host="localhost",
+        elasticsearch_port=9200,
+        elasticsearch_scheme="http",
+        songs_index="songs",
+        async_mode=async_mode
+    )
