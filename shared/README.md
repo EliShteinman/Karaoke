@@ -1,258 +1,410 @@
 # Shared Package - HebKaraoke Project
 
-This package contains all shared code between different services in the Hebrew Karaoke project.
+This package contains shared infrastructure tools and project-specific business logic for the Hebrew Karaoke project.
 
-## 📁 Directory Structure
+## 🏗️ New Architecture (After Refactoring)
+
+The shared library has been reorganized with proper separation of concerns:
+
+### 📁 Directory Structure
 
 ```
 shared/
-├── kafka/          # Kafka clients (async and sync)
-├── elasticsearch/  # Elasticsearch clients and document management
-├── storage/        # Audio and lyrics file management
-├── utils/          # Shared utilities (logger, etc.)
-├── config.py       # Central configuration management
-├── README.md       # English documentation
-├── README_HE.md    # Hebrew documentation
-├── CONFIGURATION.md # Environment variables guide (English)
-└── CONFIGURATION_HE.md # Environment variables guide (Hebrew)
+├── kafka/          # Generic Kafka clients (infrastructure layer)
+├── elasticsearch/  # Generic Elasticsearch services (infrastructure layer)
+├── storage/        # Generic file storage tools (infrastructure layer)
+├── utils/          # Generic utilities (infrastructure layer)
+├── repositories/   # Project-specific business logic (SongRepository)
+├── README.md       # This documentation
+└── README_HE.md    # Hebrew documentation
 ```
 
-## 🎵 File Storage Usage
+## 🎵 File Storage Usage (Generic Infrastructure)
 
-### Create File Manager
+The file storage system supports different storage types: Docker Volume and local computer directory.
 
+### Create File Manager - Different Examples
+
+#### Docker Volume (for development and production environments)
 ```python
 from shared.storage import create_file_manager
 
-# Create file manager for local volume
+# Create file manager with Docker Volume
 file_manager = create_file_manager("volume", base_path="/shared")
+
+# Example with custom path
+file_manager = create_file_manager("volume", base_path="/app/data")
 ```
 
-### Save Files
-
+#### Local Computer Directory (for local development)
 ```python
-# Save original audio
-audio_path = file_manager.save_original_audio("video123", audio_bytes)
+from shared.storage import create_file_manager
 
-# Save vocals-removed audio
-vocals_path = file_manager.save_vocals_removed_audio("video123", processed_audio)
+# Local directory in user's home
+file_manager = create_file_manager("local", base_path="/home/user/karaoke_files")
 
-# Save lyrics file
-lyrics_path = file_manager.save_lyrics_file("video123", lrc_content)
+# Directory on Windows computer
+file_manager = create_file_manager("local", base_path="C:\\karaoke_files")
+
+# Directory on Mac computer
+file_manager = create_file_manager("local", base_path="/Users/username/Documents/karaoke")
 ```
 
-### Read Files
+### Save and Read Files - Practical Examples
 
+#### Complete Example - Working with Audio Files
 ```python
-# Read audio
-original_audio = file_manager.get_original_audio("video123")
-vocals_removed = file_manager.get_vocals_removed_audio("video123")
+from shared.storage import create_file_manager
 
-# Read lyrics as text
-lyrics = file_manager.get_lyrics("video123")
+def audio_processing_example():
+    # Create file manager
+    file_manager = create_file_manager("volume", base_path="/shared")
+
+    video_id = "ABC123XYZ"
+
+    # Mock data
+    audio_data = b"binary_audio_data_here"  # Binary audio data
+
+    # Save original audio
+    try:
+        audio_path = file_manager.save_original_audio(video_id, audio_data)
+        print(f"Audio saved at: {audio_path}")
+
+        # Check that file was saved successfully
+        saved_audio = file_manager.get_original_audio(video_id)
+        if saved_audio:
+            print("Audio loaded successfully from storage")
+
+        # Process audio (mock)
+        processed_audio = saved_audio + b"_processed"
+
+        # Save processed audio
+        vocals_path = file_manager.save_vocals_removed_audio(video_id, processed_audio)
+        print(f"Processed audio saved at: {vocals_path}")
+
+    except Exception as e:
+        print(f"Error processing audio: {e}")
+
+# Run
+if __name__ == "__main__":
+    audio_processing_example()
 ```
 
-### Checks and Package Creation
-
+#### Example - Working with Lyrics Files
 ```python
-# Check if song is ready for karaoke
-if file_manager.is_song_ready_for_karaoke("video123"):
-    # Create ZIP with required files
-    zip_content = file_manager.create_karaoke_package("video123")
+from shared.storage import create_file_manager
 
-# Get file information
-info = file_manager.get_song_files_info("video123")
+def lyrics_example():
+    file_manager = create_file_manager("local", base_path="/tmp/karaoke")
+
+    video_id = "XYZ789"
+
+    # Save lyrics
+    lyrics_content = """[00:12.00]First line
+[00:15.50]Second line
+[00:20.00]Third line"""
+
+    lyrics_path = file_manager.save_lyrics_file(video_id, lyrics_content)
+    print(f"Lyrics saved at: {lyrics_path}")
+
+    # Read lyrics
+    saved_lyrics = file_manager.get_lyrics(video_id)
+    if saved_lyrics:
+        print("Lyrics content:")
+        print(saved_lyrics)
+
+if __name__ == "__main__":
+    lyrics_example()
 ```
 
-## 📡 Kafka Usage
+#### Example - Karaoke Readiness Check
+```python
+from shared.storage import create_file_manager
+
+def karaoke_readiness_check():
+    file_manager = create_file_manager("volume", base_path="/shared")
+
+    video_id = "READY123"
+
+    # Check if song is ready for karaoke
+    if file_manager.is_song_ready_for_karaoke(video_id):
+        print("Song is ready for karaoke!")
+
+        # Create karaoke package
+        karaoke_zip = file_manager.create_karaoke_package(video_id)
+        print(f"Karaoke package created: {len(karaoke_zip)} bytes")
+
+        # Song files info
+        files_info = file_manager.get_song_files_info(video_id)
+        print("Files info:")
+        for file_type, exists in files_info.items():
+            status = "✅ Exists" if exists else "❌ Missing"
+            print(f"  {file_type}: {status}")
+    else:
+        print("Song is not yet ready for karaoke")
+
+if __name__ == "__main__":
+    karaoke_readiness_check()
+```
+
+## 📡 Kafka Usage (Generic Infrastructure)
 
 ### Producer (Send Messages)
 
+#### Async
 ```python
-from shared.kafka import KafkaProducerAsync, KafkaProducerSync
+import asyncio
+from shared.kafka import KafkaProducerAsync
 
-# Async - defaults to localhost:9092
-producer = KafkaProducerAsync()  # connects to localhost:9092
-# Or specify custom address:
-# producer = KafkaProducerAsync("my-kafka-server:9092")
+async def producer_example():
+    producer = KafkaProducerAsync(bootstrap_servers="localhost:9092")
 
-await producer.start()
-await producer.send_message("my-topic", {"data": "value"}, key="optional_key")
-await producer.stop()
+    await producer.start()
 
-# Sync - defaults to localhost:9092
-producer = KafkaProducerSync()  # connects to localhost:9092
-# Or specify custom address:
-# producer = KafkaProducerSync("my-kafka-server:9092")
+    # Send message
+    await producer.send_message("my-topic", {"data": "value"}, key="optional_key")
 
-producer.start()
-producer.send_message("my-topic", {"data": "value"}, key="optional_key")
-producer.stop()
+    await producer.stop()
+
+# Run
+if __name__ == "__main__":
+    asyncio.run(producer_example())
+```
+
+#### Sync
+```python
+from shared.kafka import KafkaProducerSync
+
+def sync_producer_example():
+    producer = KafkaProducerSync(bootstrap_servers="localhost:9092")
+
+    producer.start()
+
+    # Send message
+    producer.send_message("my-topic", {"data": "value"}, key="optional_key")
+
+    producer.stop()
+
+if __name__ == "__main__":
+    sync_producer_example()
 ```
 
 ### Consumer (Receive Messages)
 
+#### Async
 ```python
-from shared.kafka import KafkaConsumerAsync, KafkaConsumerSync
+import asyncio
+from shared.kafka import KafkaConsumerAsync
 
-# Async - continuous listening
-consumer = KafkaConsumerAsync(["my-topic"])  # defaults to localhost:9092
-# Or with custom settings:
-# consumer = KafkaConsumerAsync(["my-topic"], "my-kafka:9092", "my-group")
+async def consumer_example():
+    consumer = KafkaConsumerAsync(
+        topics=["my-topic"],
+        bootstrap_servers="localhost:9092",
+        group_id="my-group"
+    )
 
-await consumer.start()
+    await consumer.start()
 
-async def handle_message(message):
-    print(f"Received: {message}")
-    return True
+    async def handle_message(message):
+        print(f"Received: {message}")
+        return True
 
-await consumer.listen_forever(handle_message)
-await consumer.stop()
+    # Listen for messages (runs forever)
+    await consumer.listen_forever(handle_message)
 
-# Sync - get new messages
-consumer = KafkaConsumerSync(["my-topic"])  # defaults to localhost:9092
-consumer.start()
-messages = consumer.get_new_messages(timeout_seconds=5)
-consumer.stop()
+if __name__ == "__main__":
+    asyncio.run(consumer_example())
 ```
 
-### Send Multiple Messages
-
+#### Sync
 ```python
-# Send in parallel (async)
-count = await producer.send_batch("my-topic", [msg1, msg2, msg3])
+from shared.kafka import KafkaConsumerSync
 
-# Send sequentially (sync)
-count = producer.send_batch("my-topic", [msg1, msg2, msg3])
+def sync_consumer_example():
+    consumer = KafkaConsumerSync(
+        topics=["my-topic"],
+        bootstrap_servers="localhost:9092",
+        group_id="my-group"
+    )
+
+    consumer.start()
+
+    def handle_message(message):
+        print(f"Received: {message}")
+        return True
+
+    # Listen for messages
+    consumer.listen_forever(handle_message)
+
+if __name__ == "__main__":
+    sync_consumer_example()
 ```
 
-## 🔍 Elasticsearch Usage
+## 🔍 Elasticsearch Usage (Infrastructure + Business Logic)
 
-### Create Song Repository
-
-```python
-from shared.elasticsearch import get_song_repository
-
-# Async (default)
-song_repo = get_song_repository(async_mode=True)
-
-# Sync
-song_repo = get_song_repository(async_mode=False)
-```
-
-### Song Operations
+### Using Generic Elasticsearch Factory
 
 ```python
-# Create new song
-song = await song_repo.create_song(
-    video_id="video123",
-    title="Song Title",
-    artist="Artist Name",
-    channel="YouTube Channel",
-    duration=180,
-    thumbnail="http://...",
-    search_text="search keywords"
+from shared.elasticsearch import ElasticsearchFactory
+
+# Create service with explicit parameters
+es_service = ElasticsearchFactory.create_elasticsearch_service(
+    index_name="logs",
+    elasticsearch_host="localhost",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="http",
+    async_mode=True
 )
 
-# Update file path
-await song_repo.update_file_path("video123", "vocals_removed", "/path/to/file")
-
-# Update status
-await song_repo.update_song_status("video123", "processing")
-
-# Mark as failed
-await song_repo.mark_song_failed("video123", "DOWNLOAD_FAILED", "Error message", "youtube_service")
+# Service with authentication
+es_service_auth = ElasticsearchFactory.create_elasticsearch_service(
+    index_name="secure_logs",
+    elasticsearch_host="es-cluster.example.com",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="https",
+    elasticsearch_username="user",
+    elasticsearch_password="password",
+    async_mode=True
+)
 ```
 
-### Search and Queries
+### Using Project-Specific Repositories
 
 ```python
-# Get songs ready for karaoke
-ready_songs = await song_repo.get_ready_songs()
+from shared.repositories import RepositoryFactory
 
-# Search songs by text
-results = await song_repo.search_songs("rick astley", limit=10, offset=0)
+# Create song repository with explicit parameters
+song_repo = RepositoryFactory.create_song_repository_from_params(
+    elasticsearch_host="localhost",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="http",
+    songs_index="songs",
+    async_mode=True
+)
 
-# Songs by status
-downloading = await song_repo.get_songs_by_status("downloading")
-
-# Songs needing processing
-need_vocals = await song_repo.get_songs_for_processing("vocals_removed")
+# With authentication
+secure_song_repo = RepositoryFactory.create_song_repository_from_params(
+    elasticsearch_host="secure-es.example.com",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="https",
+    elasticsearch_username="app_user",
+    elasticsearch_password="app_password",
+    songs_index="production_songs",
+    async_mode=True
+)
 ```
 
-### Advanced Configuration
+### Song Operations (Business Logic)
 
 ```python
-from shared.elasticsearch import elasticsearch_config, ElasticsearchFactory
+import asyncio
+from shared.repositories import RepositoryFactory
 
-# Change settings
-elasticsearch_config.songs_index = "my-songs-index"
+async def song_operations_example():
+    # Create repository
+    song_repo = RepositoryFactory.create_song_repository_from_params(
+        elasticsearch_host="localhost",
+        elasticsearch_port=9200,
+        songs_index="songs",
+        async_mode=True
+    )
 
-# Create custom services
-es_service = ElasticsearchFactory.create_elasticsearch_service("logs", async_mode=True)
+    # Create new song
+    song = await song_repo.create_song(
+        video_id="video123",
+        title="Song Title",
+        artist="Artist Name",
+        channel="YouTube Channel",
+        duration=180,
+        thumbnail="http://example.com/thumb.jpg",
+        search_text="search keywords"
+    )
+
+    # Update operations
+    await song_repo.update_file_path("video123", "vocals_removed", "/path/to/file")
+    await song_repo.update_song_status("video123", "processing")
+
+    # Search and queries
+    ready_songs = await song_repo.get_ready_songs()
+    results = await song_repo.search_songs("rick astley", limit=10, offset=0)
+    downloading = await song_repo.get_songs_by_status("downloading")
+
+if __name__ == "__main__":
+    asyncio.run(song_operations_example())
 ```
 
-## 📝 Logger Usage
+## 📝 Logger Usage (Generic Infrastructure)
 
 ```python
+import logging
 from shared.utils import Logger
 
-# Get logger
-logger = Logger.get_logger(
-    name="my-service",
-    es_url="http://localhost:9200",
-    index="logs",
-    level=logging.INFO
-)
+def logger_example():
+    # Get logger with explicit parameters
+    logger = Logger.get_logger(
+        name="my-service",
+        es_url="http://localhost:9200",
+        index="logs",
+        level=logging.INFO
+    )
 
-# Write logs (sent to both console and Elasticsearch)
-logger.info("Service started")
-logger.error("Error during processing")
-logger.debug("Debug information")
-```
+    # Logger with secure Elasticsearch
+    secure_logger = Logger.get_logger(
+        name="secure-service",
+        es_url="https://user:password@es-cluster.example.com:9200",
+        index="secure_logs",
+        level=logging.DEBUG
+    )
 
-## ⚙️ Environment Variables
+    # Write logs
+    logger.info("Service started")
+    logger.error("Error during processing")
 
-### Kafka
-```bash
-# No required environment variables - default address: localhost:9092
-```
+    # Local-only logger (no Elasticsearch)
+    local_logger = Logger.get_logger(name="local-service")
+    local_logger.info("Local log only")
 
-### Elasticsearch
-```bash
-ELASTICSEARCH_SCHEME=http
-ELASTICSEARCH_HOST=localhost
-ELASTICSEARCH_PORT=9200
-ELASTICSEARCH_USERNAME=user
-ELASTICSEARCH_PASSWORD=pass
-ELASTICSEARCH_SONGS_INDEX=songs
-ELASTICSEARCH_LOGS_INDEX=logs
-```
-
-### File Storage
-```bash
-# Base path for volume (default: /shared)
-FILE_STORAGE_BASE_PATH=/shared
+if __name__ == "__main__":
+    logger_example()
 ```
 
 ## 🏗️ Complete Example - Audio Processing Service
 
 ```python
 import asyncio
+import logging
 from shared.kafka import KafkaConsumerAsync, KafkaProducerAsync
-from shared.elasticsearch import get_song_repository
+from shared.repositories import RepositoryFactory
 from shared.storage import create_file_manager
 from shared.utils import Logger
 
-async def audio_processing_service():
+async def complete_audio_service_example():
+    # Set parameters (usually would come from configuration)
+    kafka_servers = "localhost:9092"
+    es_host = "localhost"
+    es_port = 9200
+    storage_path = "/shared"
+
     # Create components
-    consumer = KafkaConsumerAsync(["audio.process.requested"], group_id="audio-service")
-    producer = KafkaProducerAsync()
-    song_repo = get_song_repository()
-    file_manager = create_file_manager()
+    consumer = KafkaConsumerAsync(
+        topics=["audio.process.requested"],
+        bootstrap_servers=kafka_servers,
+        group_id="audio-service"
+    )
+
+    producer = KafkaProducerAsync(bootstrap_servers=kafka_servers)
+
+    song_repo = RepositoryFactory.create_song_repository_from_params(
+        elasticsearch_host=es_host,
+        elasticsearch_port=es_port,
+        songs_index="songs",
+        async_mode=True
+    )
+
+    file_manager = create_file_manager("volume", base_path=storage_path)
     logger = Logger.get_logger("audio-service")
 
-    # Start
+    # Start services
     await consumer.start()
     await producer.start()
 
@@ -263,9 +415,12 @@ async def audio_processing_service():
 
             # Read original audio
             original_audio = file_manager.get_original_audio(video_id)
+            if not original_audio:
+                logger.error(f"No original audio found for {video_id}")
+                return False
 
-            # Process vocal removal (dummy code)
-            processed_audio = remove_vocals(original_audio)
+            # Process vocal removal (mock)
+            processed_audio = original_audio + b"_vocals_removed"
 
             # Save result
             path = file_manager.save_vocals_removed_audio(video_id, processed_audio)
@@ -280,6 +435,7 @@ async def audio_processing_service():
                 "path": path
             })
 
+            logger.info(f"Audio processing completed for {video_id}")
             return True
 
         except Exception as e:
@@ -288,76 +444,38 @@ async def audio_processing_service():
             return False
 
     # Listen for messages
+    logger.info("Audio processing service started")
     await consumer.listen_forever(process_audio_message)
 
 # Run
 if __name__ == "__main__":
-    asyncio.run(audio_processing_service())
+    asyncio.run(complete_audio_service_example())
 ```
 
 ## 📚 Important Notes
 
-- **Async vs Sync**: Default is async. Use sync only when necessary
-- **Elasticsearch Mapping**: Song mapping is fixed and optimized for the Karaoke project
-- **Connection Management**: Always call `start()` and `stop()` for Kafka clients
-- **Error Handling**: Use `mark_song_failed()` to report errors
-- **Logger**: Logger automatically sends to both console and Elasticsearch
+- **Independence**: Each tool works independently with explicit parameters
+- **Flexibility**: Tools can be used with any configuration system
+- **Isolation**: Infrastructure tools don't depend on specific configuration
+- **Reusability**: Tools can be used in different projects
 
 ## 🎯 Quick Reference
 
 ### Import Patterns
 ```python
-# Storage
-from shared.storage import create_file_manager, KaraokeFileManager
-
-# Kafka
+# Generic Infrastructure Tools
+from shared.storage import create_file_manager
 from shared.kafka import KafkaProducerAsync, KafkaConsumerSync
-
-# Elasticsearch
-from shared.elasticsearch import get_song_repository, elasticsearch_config
-
-# Utils
+from shared.elasticsearch import ElasticsearchFactory
 from shared.utils import Logger
 
-# Configuration
-from shared.config import config
+# Project-Specific Business Logic
+from shared.repositories import RepositoryFactory
 ```
 
-### Common Workflows
+### Usage Principles
 
-**1. Download and Process Song:**
-```python
-# 1. Create song document
-await song_repo.create_song(video_id, title, artist)
-
-# 2. Save original audio
-file_manager.save_original_audio(video_id, audio_bytes)
-
-# 3. Update file path
-await song_repo.update_file_path(video_id, "original", path)
-
-# 4. Send for processing
-await producer.send_message("audio.process.requested", {"video_id": video_id})
-```
-
-**2. Check Song Readiness:**
-```python
-# Method 1: File manager
-if file_manager.is_song_ready_for_karaoke(video_id):
-    zip_content = file_manager.create_karaoke_package(video_id)
-
-# Method 2: Repository
-ready_songs = await song_repo.get_ready_songs()
-```
-
-**3. Error Handling:**
-```python
-try:
-    # Process song
-    process_song(video_id)
-except Exception as e:
-    await song_repo.mark_song_failed(
-        video_id, "PROCESSING_ERROR", str(e), "my-service"
-    )
-    logger.error(f"Song processing failed: {e}")
-```
+1. **Explicit Parameters**: Each tool receives its parameters explicitly
+2. **No Configuration Dependencies**: Tools don't know where parameters come from
+3. **Flexibility**: Can be used with any configuration system or none at all
+4. **Independence**: Each tool works without dependence on specific project
