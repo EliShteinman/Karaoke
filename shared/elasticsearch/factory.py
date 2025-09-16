@@ -7,10 +7,10 @@ from typing import Union
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch
 
-from .elasticsearch_service import ElasticsearchService
-from .elasticsearch_service_sync import ElasticsearchServiceSync
-from ..repositories.song_repository import SongRepository
-from ..repositories.song_repository_sync import SongRepositorySync
+from shared.elasticsearch.elasticsearch_service import ElasticsearchService
+from shared.elasticsearch.elasticsearch_service_sync import ElasticsearchServiceSync
+from shared.repositories.song_repository import SongRepository
+from shared.repositories.song_repository_sync import SongRepositorySync
 
 
 class ElasticsearchFactory:

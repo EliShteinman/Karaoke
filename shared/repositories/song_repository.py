@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from ..elasticsearch.elasticsearch_service import ElasticsearchService
+from shared.elasticsearch.elasticsearch_service import ElasticsearchService
 
 logger = logging.getLogger(__name__)
 
