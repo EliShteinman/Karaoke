@@ -1,15 +1,15 @@
-import json
 import os
 import traceback
 from datetime import datetime
 
-from kafka import KafkaConsumer
-
+# Import shared components
 from shared.utils.logger import Logger
+from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
+
+# Import local services
 from ..services.speech_to_text import SpeechToTextService
 from ..services.lrc_generator import create_lrc_file
 from ..services.elasticsearch_updater import ElasticsearchUpdater
-from ..utils.kafka_producer import KafkaProducerManager
 
 class TranscriptionConsumer:
     def __init__(self):
@@ -19,30 +19,39 @@ class TranscriptionConsumer:
         self.request_topic = os.getenv("KAFKA_TOPIC_REQUEST", "transcription.process.requested")
         self.done_topic = os.getenv("KAFKA_TOPIC_DONE", "transcription.done")
         self.failed_topic = os.getenv("KAFKA_TOPIC_FAILED", "transcription.failed")
+        
+        bootstrap_servers = os.getenv("KAFKA_BROKER")
 
-        # Kafka Consumer
-        self.consumer = KafkaConsumer(
-            self.request_topic,
-            bootstrap_servers=os.getenv("KAFKA_BROKER"),
-            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-            auto_offset_reset='earliest',
-            group_id="transcription-service-group"
+        # Use shared Kafka Consumer
+        self.consumer = KafkaConsumerSync(
+            topics=[self.request_topic],
+            bootstrap_servers=bootstrap_servers,
+            group_id="transcription-service-group",
+            auto_offset_reset='earliest' # Start from the beginning of the topic
         )
         
-        # Kafka Producer
-        self.producer = KafkaProducerManager()
+        # Use shared Kafka Producer
+        self.producer = KafkaProducerSync(
+            bootstrap_servers=bootstrap_servers
+        )
         
         # Services
         self.stt = SpeechToTextService()
         self.es_updater = ElasticsearchUpdater()
 
     def start(self):
+        self.logger.info("TranscriptionConsumer is starting...")
+        self.consumer.start()
+        self.producer.start()
         self.logger.info(f"TranscriptionConsumer is listening to topic: '{self.request_topic}'")
+        
         try:
-            for msg in self.consumer:
+            # Use the consume() generator from the shared client
+            for msg in self.consumer.consume():
                 video_id = None # Initialize for error handling
                 try:
-                    data = msg.value
+                    # The message value is in the 'value' key of the dictionary yielded by consume()
+                    data = msg.get("value", {})
                     video_id = data.get("video_id")
 
                     if not video_id:
@@ -86,15 +95,14 @@ class TranscriptionConsumer:
                     done_message = {
                         "video_id": video_id,
                         "status": "transcription_done",
-                        "timestamp": datetime.utcnow().isoformat(),
                         **metadata
                     }
-                    self.producer.send_message(self.done_topic, done_message)
+                    self.producer.send_message(self.done_topic, done_message, key=video_id)
                     self.logger.info(f"[{video_id}] - Successfully processed transcription request.")
 
                 except Exception as e:
                     self.logger.error(f"[{video_id}] - Failed to process transcription request. Reason: {e}")
-                    self.logger.debug(traceback.format_exc()) # Log stack trace for debugging
+                    self.logger.debug(traceback.format_exc())
 
                     if video_id:
                         error_details = {
@@ -105,10 +113,11 @@ class TranscriptionConsumer:
                             "trace": traceback.format_exc()
                         }
                         self.es_updater.update_song_with_error(video_id, error_details)
-                        self.producer.send_message(self.failed_topic, {"video_id": video_id, "status": "failed", "error": error_details})
+                        failed_message = {"video_id": video_id, "status": "failed", "error": error_details}
+                        self.producer.send_message(self.failed_topic, failed_message, key=video_id)
                         self.logger.info(f"[{video_id}] - Failure report sent to Elasticsearch and Kafka.")
 
         finally:
-            self.logger.info("Shutting down TranscriptionConsumer and Kafka producer.")
-            self.consumer.close()
-            self.producer.close()
+            self.logger.info("Shutting down TranscriptionConsumer.")
+            self.consumer.stop()
+            self.producer.stop()
