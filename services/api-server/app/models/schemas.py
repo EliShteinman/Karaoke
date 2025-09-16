@@ -10,7 +10,7 @@ class SearchRequest(BaseModel):
 
 class DownloadRequest(BaseModel):
     """Schema for the download request body, forwarded from the client."""
-    video_id: str = Field(..., pattern=r'^[a-zA-Z0-9_-]{11}$', description="YouTube video ID.")
+    video_id: str = Field(..., regex=r'^[a-zA-Z0-9_-]{11}$', description="YouTube video ID.")
     title: str = Field(..., min_length=1, max_length=300, description="Video title.")
     channel: str = Field(..., min_length=1, max_length=100, description="YouTube channel name.")
     duration: int = Field(..., gt=0, description="Video duration in seconds.")

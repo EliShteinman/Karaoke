@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 import httpx
-from ...models import schemas
-from ...clients import youtube_service_client
+from services.api_server.app.models import schemas
+from services.api_server.app.clients import youtube_service_client
 from shared.utils.logger import Logger
 
 logger = Logger.get_logger(__name__)
@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post("/search", response_model=schemas.SearchResponse)
-async def search_youtube(search_request: schemas.SearchRequest):
+async def search_youtube(search_request: schemas.SearchRequest) -> schemas.SearchResponse:
     """Endpoint to search for songs. Forwards the request to the YouTube service."""
     logger.info(f"Router: Received search request for query: '{search_request.query}'")
     try:
@@ -31,7 +31,7 @@ async def search_youtube(search_request: schemas.SearchRequest):
 
 
 @router.post("/download", status_code=status.HTTP_202_ACCEPTED, response_model=schemas.DownloadResponse)
-async def queue_download(download_request: schemas.DownloadRequest):
+async def queue_download(download_request: schemas.DownloadRequest) -> schemas.DownloadResponse:
     """Endpoint to queue a song for download. Forwards the request to the YouTube service."""
     logger.info(f"Router: Received download request for video_id: {download_request.video_id}")
     try:
