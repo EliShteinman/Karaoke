@@ -57,7 +57,6 @@ def _calculate_progress(song_doc: Dict[str, Any]) -> schemas.Progress:
         files_ready=_is_song_ready(song_doc)
     )
 
-# --- SERVICE FUNCTIONS (to be called by routers) ---
 
 async def get_all_songs() -> schemas.SongsResponse:
     """(Fake) Fetches all songs and returns them in the correct format."""
