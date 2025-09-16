@@ -1,9 +1,6 @@
 from pydantic import BaseModel, Field, HttpUrl
 from typing import List, Literal
 from datetime import datetime
-from shared.utils.logger import Logger
-
-logger = Logger.get_logger(__name__)
 
 # --- Input Schemas ---
 
@@ -17,7 +14,7 @@ class DownloadRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=300, description="Video title.")
     channel: str = Field(..., min_length=1, max_length=100, description="YouTube channel name.")
     duration: int = Field(..., gt=0, description="Video duration in seconds.")
-    thumbnail: HttpUrl
+    thumbnail: HttpUrl = Field(..., description="Video thumbnail URL.")
 
 # --- Output Schemas ---
 
