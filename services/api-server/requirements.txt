@@ -11,3 +11,4 @@ httpx
 
 # Dependency for the shared logger and direct ES access
 elasticsearch[async]
+aiohttp
