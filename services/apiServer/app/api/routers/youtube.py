@@ -1,17 +1,13 @@
 from fastapi import APIRouter, HTTPException, status
 import httpx
-from ...models import schemas
-from ...clients import youtube_service_client
+from services.apiServer.app.models import schemas
+from services.apiServer.app.clients import youtube_service_client
 from shared.utils.logger import Logger
 
 # Import config for logger initialization
-from ...config import settings
+from services.apiServer.app.config import settings
 
-logger = Logger.get_logger(
-    name="api-server-youtube",
-    es_url=f"{settings.elasticsearch_scheme}://{settings.elasticsearch_host}:{settings.elasticsearch_port}",
-    index="logs"
-)
+logger = Logger.get_logger(name="api-server-youtube")
 
 router = APIRouter()
 
@@ -22,7 +18,7 @@ async def search_youtube(search_request: schemas.SearchRequest) -> schemas.Searc
     logger.info(f"Router: Received search request for query: '{search_request.query}'")
     try:
         logger.info(f"Router: Forwarding search request to YouTube Service for query: '{search_request.query}'")
-        response = await youtube_service_client.post("/search", json=search_request.dict())
+        response = await youtube_service_client.post("/search", json=search_request.model_dump(mode='json'))
         response.raise_for_status()  # Raises an exception for 4xx/5xx responses
         logger.info("Router: Successfully received search results from YouTube Service.")
         return response.json()
@@ -46,9 +42,10 @@ async def search_youtube(search_request: schemas.SearchRequest) -> schemas.Searc
 async def queue_download(download_request: schemas.DownloadRequest) -> schemas.DownloadResponse:
     """Endpoint to queue a song for download. Forwards the request to the YouTube service."""
     logger.info(f"Router: Received download request for video_id: {download_request.video_id}")
+    logger.debug(f"Router: Download request payload: {download_request.model_dump(mode='json')}")
     try:
         logger.info(f"Router: Forwarding download request to YouTube Service for video_id: {download_request.video_id}")
-        response = await youtube_service_client.post("/download", json=download_request.dict())
+        response = await youtube_service_client.post("/download", json=download_request.model_dump(mode='json'))
         response.raise_for_status()
         logger.info(f"Router: Successfully received '202 Accepted' from YouTube Service for video_id: {download_request.video_id}")
         return response.json()

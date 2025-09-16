@@ -1,13 +1,13 @@
 from typing import Dict
 from fastapi import FastAPI
-from .config import settings
-from .api.routers import songs, youtube
+from services.apiServer.app.config import settings
+from services.apiServer.app.api.routers import songs, youtube
 from shared.utils.logger import Logger
 
 logger = Logger.get_logger(
     name="api-server",
-    es_url=f"{settings.elasticsearch_scheme}://{settings.elasticsearch_host}:{settings.elasticsearch_port}",
-    index="logs"
+    es_url=settings.get_log_elasticsearch_url(),
+    index=settings.log_elasticsearch_index
 )
 
 # Create the main FastAPI application instance

@@ -1,17 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from ...models import schemas
-from ...services import songs as songs_service
+from services.apiServer.app.models import schemas
+from services.apiServer.app.services import songs as songs_service
 from shared.utils.logger import Logger
 
 # Import config for logger initialization
-from ...config import settings
+from services.apiServer.app.config import settings
 
-logger = Logger.get_logger(
-    name="api-server-songs",
-    es_url=f"{settings.elasticsearch_scheme}://{settings.elasticsearch_host}:{settings.elasticsearch_port}",
-    index="logs"
-)
+logger = Logger.get_logger(name="api-server-songs")
 
 router = APIRouter()
 
