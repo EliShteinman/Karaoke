@@ -1,7 +1,9 @@
 import streamlit as st
+from shared.utils import Logger
 from services.streamlitClient.api.api_client import search, download_song
 from services.streamlitClient.api.helpers import show_youtube_player
 
+logger = Logger.get_logger()
 st.set_page_config(page_title="חיפוש שירים", page_icon="🔍")
 st.title("🔍 חיפוש והורדת שירים")
 
@@ -17,10 +19,12 @@ with st.form(key="search_form"):
     submit_button = st.form_submit_button(label="חפש ביוטיוב")
 
 if submit_button and query:
+    logger.info(f"User searched for: '{query}'")
     with st.spinner("מחפש, אנא המתן..."):
         results = search(query)
         st.session_state['search_results'] = results
         if not results:
+            logger.info(f"No search results found for query: '{query}'")
             st.info("לא נמצאו תוצאות עבור החיפוש שלך.")
 
 # --- Results Display ---
@@ -44,14 +48,17 @@ if st.session_state['search_results']:
                     st.button("הורדה התחילה ✅", key=f"download_{video_id}", disabled=True)
                 else:
                     if st.button("הורד שיר זה ⬇️", key=f"download_{video_id}"):
+                        logger.info(f"User initiated download for song: '{song['title']}' (video_id: {video_id})")
                         with st.spinner("שולח בקשת הורדה..."):
                             response = download_song(song)
                             if response and response.get('status') == 'queued':
+                                logger.info(f"Successfully queued download for song: '{song['title']}'")
                                 st.success(f"השיר '{song['title']}' נוסף לתור ההורדות!")
                                 # Add to session state for tracking on the downloads page
                                 st.session_state['download_requests'][video_id] = song
                                 st.rerun()
                             else:
+                                logger.error(f"Failed to queue download for song: '{song['title']}'. Response: {response}")
                                 st.error("ההורדה נכשלה. נסה שוב או בחר שיר אחר.")
 
             # Optional: Show a preview player
