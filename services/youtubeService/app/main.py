@@ -51,3 +51,12 @@ def download_song(payload: DownloadRequest) -> DownloadResponse:
     except Exception as e:
         logger.error(f"Download failed for video_id='{payload.video_id}': {e}")
         raise HTTPException(status_code=500, detail="Download failed")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host=config.SERVICE_HOST,
+        port=config.SERVICE_PORT,
+    )
