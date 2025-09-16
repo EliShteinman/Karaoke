@@ -11,7 +11,6 @@ class APIServerConfig:
         self.port = int(os.getenv("API_PORT", "8000"))
         self.debug = os.getenv("API_DEBUG", "false").lower() == "true"
         self.cors_origins = os.getenv("API_CORS_ORIGINS", "*").split(",")
-        self.api_v1_str = "/api/v1"  # This is an internal constant
 
         # --- Elasticsearch Configuration ---
         self.elasticsearch_scheme = os.getenv("ELASTICSEARCH_SCHEME", "http")

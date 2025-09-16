@@ -15,7 +15,6 @@ app = FastAPI(
 logger.info("API Server starting up...")
 
 # Include the routers
-# All routes from the songs router will be prefixed with /api/v1
 app.include_router(songs.router, tags=["Songs"])
 app.include_router(youtube.router, tags=["YouTube"])
 

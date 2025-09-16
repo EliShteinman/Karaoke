@@ -1,9 +1,6 @@
 from pydantic import BaseModel, Field, HttpUrl
 from typing import List, Literal
 from datetime import datetime
-from shared.utils.logger import Logger
-
-logger = Logger.get_logger(__name__)
 
 # --- Input Schemas ---
 
