@@ -1,271 +1,426 @@
 # מחלקת Shared - פרויקט קריוקי עברי
 
-מחלקה זו מכילה את כל הקוד המשותף בין השירותים השונים של פרויקט הקריוקי העברי.
+מחלקה זו מכילה כלי תשתית גנריים ולוגיקה עסקית ספציפית לפרויקט הקריוקי העברי.
 
-## 📁 מבנה התיקיות
+## 🏗️ ארכיטקטורה חדשה (לאחר רפקטורינג)
+
+ספריית הshared אורגנה מחדש עם הפרדת אחריות נכונה:
+
+### 📁 מבנה התיקיות
 
 ```
 shared/
-├── kafka/          # לקוחות Kafka (אסינכרוני וסינכרוני)
-├── elasticsearch/  # לקוחות Elasticsearch וניהול מסמכים
-├── storage/        # ניהול קבצי אודיו ולירים
-├── utils/          # כלים משותפים (לוגר וכו')
-├── config.py       # ניהול קונפיגורציה מרכזי
+├── kafka/          # לקוחות Kafka גנריים (שכבת תשתית)
+├── elasticsearch/  # שירותי Elasticsearch גנריים (שכבת תשתית)
+├── storage/        # כלי אחסון קבצים גנריים (שכבת תשתית)
+├── utils/          # כלים עזר גנריים (שכבת תשתית)
+├── repositories/   # לוגיקה עסקית ספציפית לפרויקט (SongRepository)
 ├── README.md       # תיעוד באנגלית
-├── README_HE.md    # תיעוד בעברית
-├── CONFIGURATION.md # מדריך משתני סביבה (אנגלית)
-└── CONFIGURATION_HE.md # מדריך משתני סביבה (עברית)
+└── README_HE.md    # התיעוד הזה
 ```
 
-## 🎵 שימוש במערכת הקבצים
+## 🎵 שימוש במערכת הקבצים (תשתית גנרית)
 
-### יצירת מנהל קבצים
+מערכת הקבצים תומכת בסוגי אחסון שונים: Volume Docker ותיקיה מקומית במחשב.
 
+### יצירת מנהל קבצים - דוגמאות שונות
+
+#### Volume Docker (בסביבת פיתוח וייצור)
 ```python
 from shared.storage import create_file_manager
 
-# יצירת מנהל קבצים לvolume מקומי
+# יצירת מנהל קבצים עם Volume Docker
 file_manager = create_file_manager("volume", base_path="/shared")
+
+# דוגמה עם נתיב מותאם אישית
+file_manager = create_file_manager("volume", base_path="/app/data")
 ```
 
-### שמירת קבצים
-
+#### תיקיה מקומית במחשב (בפיתוח מקומי)
 ```python
-# שמירת אודיו מקורי
-audio_path = file_manager.save_original_audio("video123", audio_bytes)
+from shared.storage import create_file_manager
 
-# שמירת אודיו ללא ווקאל
-vocals_path = file_manager.save_vocals_removed_audio("video123", processed_audio)
+# תיקיה מקומית בבית המשתמש
+file_manager = create_file_manager("local", base_path="/home/user/karaoke_files")
 
-# שמירת קובץ לירים
-lyrics_path = file_manager.save_lyrics_file("video123", lrc_content)
+# תיקיה במחשב Windows
+file_manager = create_file_manager("local", base_path="C:\\karaoke_files")
+
+# תיקיה במחשב Mac
+file_manager = create_file_manager("local", base_path="/Users/username/Documents/karaoke")
 ```
 
-### קריאת קבצים
+### שמירה וקריאת קבצים - דוגמאות מעשיות
 
+#### דוגמה מלאה - עבודה עם קבצי אודיו
 ```python
-# קריאת אודיו
-original_audio = file_manager.get_original_audio("video123")
-vocals_removed = file_manager.get_vocals_removed_audio("video123")
+from shared.storage import create_file_manager
 
-# קריאת לירים כטקסט
-lyrics = file_manager.get_lyrics("video123")
+def audio_processing_example():
+    # יצירת מנהל קבצים
+    file_manager = create_file_manager("volume", base_path="/shared")
+
+    video_id = "ABC123XYZ"
+
+    # נתוני דמה
+    audio_data = b"binary_audio_data_here"  # נתוני אודיו בינאריים
+
+    # שמירת אודיו מקורי
+    try:
+        audio_path = file_manager.save_original_audio(video_id, audio_data)
+        print(f"אודיו נשמר ב: {audio_path}")
+
+        # בדיקה שהקובץ נשמר בהצלחה
+        saved_audio = file_manager.get_original_audio(video_id)
+        if saved_audio:
+            print("אודיו נטען בהצלחה מהאחסון")
+
+        # עיבוד אודיו (דמה)
+        processed_audio = saved_audio + b"_processed"
+
+        # שמירת אודיו מעובד
+        vocals_path = file_manager.save_vocals_removed_audio(video_id, processed_audio)
+        print(f"אודיו מעובד נשמר ב: {vocals_path}")
+
+    except Exception as e:
+        print(f"שגיאה בעיבוד אודיו: {e}")
+
+# הרצה
+if __name__ == "__main__":
+    audio_processing_example()
 ```
 
-### בדיקות ויצירת חבילות
-
+#### דוגמה - עבודה עם קבצי לירים
 ```python
-# בדיקה אם השיר מוכן לקריוקי
-if file_manager.is_song_ready_for_karaoke("video123"):
-    # יצירת ZIP עם קבצים נדרשים
-    zip_content = file_manager.create_karaoke_package("video123")
+from shared.storage import create_file_manager
 
-# מידע על קבצים
-info = file_manager.get_song_files_info("video123")
+def lyrics_example():
+    file_manager = create_file_manager("local", base_path="/tmp/karaoke")
+
+    video_id = "XYZ789"
+
+    # שמירת לירים
+    lyrics_content = """[00:12.00]שורה ראשונה
+[00:15.50]שורה שנייה
+[00:20.00]שורה שלישית"""
+
+    lyrics_path = file_manager.save_lyrics_file(video_id, lyrics_content)
+    print(f"לירים נשמרו ב: {lyrics_path}")
+
+    # קריאת לירים
+    saved_lyrics = file_manager.get_lyrics(video_id)
+    if saved_lyrics:
+        print("תוכן הלירים:")
+        print(saved_lyrics)
+
+if __name__ == "__main__":
+    lyrics_example()
 ```
 
-## 📡 שימוש ב-Kafka
+#### דוגמה - בדיקת מוכנות לקריוקי
+```python
+from shared.storage import create_file_manager
+
+def karaoke_readiness_check():
+    file_manager = create_file_manager("volume", base_path="/shared")
+
+    video_id = "READY123"
+
+    # בדיקה אם השיר מוכן לקריוקי
+    if file_manager.is_song_ready_for_karaoke(video_id):
+        print("השיר מוכן לקריוקי!")
+
+        # יצירת חבילת קריוקי
+        karaoke_zip = file_manager.create_karaoke_package(video_id)
+        print(f"חבילת קריוקי נוצרה: {len(karaoke_zip)} bytes")
+
+        # מידע על קבצי השיר
+        files_info = file_manager.get_song_files_info(video_id)
+        print("מידע על קבצים:")
+        for file_type, exists in files_info.items():
+            status = "✅ קיים" if exists else "❌ חסר"
+            print(f"  {file_type}: {status}")
+    else:
+        print("השיר עדיין לא מוכן לקריוקי")
+
+if __name__ == "__main__":
+    karaoke_readiness_check()
+```
+
+## 📡 שימוש ב-Kafka (תשתית גנרית)
 
 ### Producer (שולח הודעות)
 
+#### אסינכרוני
 ```python
-from shared.kafka import KafkaProducerAsync, KafkaProducerSync
+import asyncio
+from shared.kafka import KafkaProducerAsync
 
-# אסינכרוני - ברירת מחדל localhost:9092
-producer = KafkaProducerAsync()  # יתחבר ל-localhost:9092
-# או לציין כתובת מותאמת:
-# producer = KafkaProducerAsync("my-kafka-server:9092")
+async def producer_example():
+    producer = KafkaProducerAsync(bootstrap_servers="localhost:9092")
 
-await producer.start()
-await producer.send_message("my-topic", {"data": "value"}, key="optional_key")
-await producer.stop()
+    await producer.start()
 
-# סינכרוני - ברירת מחדל localhost:9092
-producer = KafkaProducerSync()  # יתחבר ל-localhost:9092
-# או לציין כתובת מותאמת:
-# producer = KafkaProducerSync("my-kafka-server:9092")
+    # שליחת הודעה
+    await producer.send_message("my-topic", {"data": "value"}, key="optional_key")
 
-producer.start()
-producer.send_message("my-topic", {"data": "value"}, key="optional_key")
-producer.stop()
+    await producer.stop()
+
+# הרצה
+if __name__ == "__main__":
+    asyncio.run(producer_example())
+```
+
+#### סינכרוני
+```python
+from shared.kafka import KafkaProducerSync
+
+def sync_producer_example():
+    producer = KafkaProducerSync(bootstrap_servers="localhost:9092")
+
+    producer.start()
+
+    # שליחת הודעה
+    producer.send_message("my-topic", {"data": "value"}, key="optional_key")
+
+    producer.stop()
+
+if __name__ == "__main__":
+    sync_producer_example()
 ```
 
 ### Consumer (מקבל הודעות)
 
+#### אסינכרוני
 ```python
-from shared.kafka import KafkaConsumerAsync, KafkaConsumerSync
+import asyncio
+from shared.kafka import KafkaConsumerAsync
 
-# אסינכרוני - האזנה תמידית
-consumer = KafkaConsumerAsync(["my-topic"])  # ברירת מחדל localhost:9092
-# או עם הגדרות מותאמות:
-# consumer = KafkaConsumerAsync(["my-topic"], "my-kafka:9092", "my-group")
+async def consumer_example():
+    consumer = KafkaConsumerAsync(
+        topics=["my-topic"],
+        bootstrap_servers="localhost:9092",
+        group_id="my-group"
+    )
 
-await consumer.start()
+    await consumer.start()
 
-async def handle_message(message):
-    print(f"Received: {message}")
-    return True
+    async def handle_message(message):
+        print(f"התקבל: {message}")
+        return True
 
-await consumer.listen_forever(handle_message)
-await consumer.stop()
+    # האזנה להודעות (זה ירוץ לעד)
+    await consumer.listen_forever(handle_message)
 
-# סינכרוני - קריאת הודעות חדשות
-consumer = KafkaConsumerSync(["my-topic"])  # ברירת מחדל localhost:9092
-consumer.start()
-messages = consumer.get_new_messages(timeout_seconds=5)
-consumer.stop()
+if __name__ == "__main__":
+    asyncio.run(consumer_example())
 ```
 
-### שליחת מספר הודעות
-
+#### סינכרוני
 ```python
-# שליחה מקבילה (async)
-count = await producer.send_batch("my-topic", [msg1, msg2, msg3])
+from shared.kafka import KafkaConsumerSync
 
-# שליחה ברצף (sync)
-count = producer.send_batch("my-topic", [msg1, msg2, msg3])
+def sync_consumer_example():
+    consumer = KafkaConsumerSync(
+        topics=["my-topic"],
+        bootstrap_servers="localhost:9092",
+        group_id="my-group"
+    )
+
+    consumer.start()
+
+    def handle_message(message):
+        print(f"התקבל: {message}")
+        return True
+
+    # האזנה להודעות
+    consumer.listen_forever(handle_message)
+
+if __name__ == "__main__":
+    sync_consumer_example()
 ```
 
-## 🔍 שימוש ב-Elasticsearch
+## 🔍 שימוש ב-Elasticsearch (תשתית + לוגיקה עסקית)
 
-### יצירת לקוח שירים
-
-```python
-from shared.elasticsearch import get_song_repository
-
-# אסינכרוני (ברירת מחדל)
-song_repo = get_song_repository(async_mode=True)
-
-# סינכרוני
-song_repo = get_song_repository(async_mode=False)
-```
-
-### פעולות על שירים
+### שימוש ב-Factory גנרי של Elasticsearch
 
 ```python
-# יצירת שיר חדש
-song = await song_repo.create_song(
-    video_id="video123",
-    title="שם השיר",
-    artist="שם האמן",
-    channel="ערוץ יוטיוב",
-    duration=180,
-    thumbnail="http://...",
-    search_text="מילות חיפוש"
+from shared.elasticsearch import ElasticsearchFactory
+
+# יצירת שירות עם פרמטרים מפורשים
+es_service = ElasticsearchFactory.create_elasticsearch_service(
+    index_name="logs",
+    elasticsearch_host="localhost",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="http",
+    async_mode=True
 )
 
-# עדכון נתיב קובץ
-await song_repo.update_file_path("video123", "vocals_removed", "/path/to/file")
-
-# עדכון סטטוס
-await song_repo.update_song_status("video123", "processing")
-
-# סימון שגיאה
-await song_repo.mark_song_failed("video123", "DOWNLOAD_FAILED", "שגיאה", "youtube_service")
+# שירות עם אימות
+es_service_auth = ElasticsearchFactory.create_elasticsearch_service(
+    index_name="secure_logs",
+    elasticsearch_host="es-cluster.example.com",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="https",
+    elasticsearch_username="user",
+    elasticsearch_password="password",
+    async_mode=True
+)
 ```
 
-### חיפוש ושאילתות
+### שימוש ב-Repositories ספציפיים לפרויקט
 
 ```python
-# קבלת שירים מוכנים לקריוקי
-ready_songs = await song_repo.get_ready_songs()
+from shared.repositories import RepositoryFactory
 
-# חיפוש שירים לפי טקסט
-results = await song_repo.search_songs("rick astley", limit=10, offset=0)
+# יצירת song repository עם פרמטרים מפורשים
+song_repo = RepositoryFactory.create_song_repository_from_params(
+    elasticsearch_host="localhost",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="http",
+    songs_index="songs",
+    async_mode=True
+)
 
-# שירים לפי סטטוס
-downloading = await song_repo.get_songs_by_status("downloading")
-
-# שירים שצריכים עיבוד
-need_vocals = await song_repo.get_songs_for_processing("vocals_removed")
+# עם אימות
+secure_song_repo = RepositoryFactory.create_song_repository_from_params(
+    elasticsearch_host="secure-es.example.com",
+    elasticsearch_port=9200,
+    elasticsearch_scheme="https",
+    elasticsearch_username="app_user",
+    elasticsearch_password="app_password",
+    songs_index="production_songs",
+    async_mode=True
+)
 ```
 
-### הגדרות מתקדמות
+### פעולות על שירים (לוגיקה עסקית)
 
 ```python
-from shared.elasticsearch import elasticsearch_config, ElasticsearchFactory
+import asyncio
+from shared.repositories import RepositoryFactory
 
-# שינוי הגדרות
-elasticsearch_config.songs_index = "my-songs-index"
+async def song_operations_example():
+    # יצירת repository
+    song_repo = RepositoryFactory.create_song_repository_from_params(
+        elasticsearch_host="localhost",
+        elasticsearch_port=9200,
+        songs_index="songs",
+        async_mode=True
+    )
 
-# יצירת שירותים מותאמים
-es_service = ElasticsearchFactory.create_elasticsearch_service("logs", async_mode=True)
+    # יצירת שיר חדש
+    song = await song_repo.create_song(
+        video_id="video123",
+        title="שם השיר",
+        artist="שם האמן",
+        channel="ערוץ יוטיוב",
+        duration=180,
+        thumbnail="http://example.com/thumb.jpg",
+        search_text="מילות חיפוש"
+    )
+
+    # פעולות עדכון
+    await song_repo.update_file_path("video123", "vocals_removed", "/path/to/file")
+    await song_repo.update_song_status("video123", "processing")
+
+    # חיפוש ושאילתות
+    ready_songs = await song_repo.get_ready_songs()
+    results = await song_repo.search_songs("rick astley", limit=10, offset=0)
+    downloading = await song_repo.get_songs_by_status("downloading")
+
+if __name__ == "__main__":
+    asyncio.run(song_operations_example())
 ```
 
-## 📝 שימוש בלוגר
+## 📝 שימוש בלוגר (תשתית גנרית)
 
 ```python
+import logging
 from shared.utils import Logger
 
-# קבלת לוגר
-logger = Logger.get_logger(
-    name="my-service",
-    es_url="http://localhost:9200",
-    index="logs",
-    level=logging.INFO
-)
+def logger_example():
+    # קבלת לוגר עם פרמטרים מפורשים
+    logger = Logger.get_logger(
+        name="my-service",
+        es_url="http://localhost:9200",
+        index="logs",
+        level=logging.INFO
+    )
 
-# כתיבת לוגים (נשלח גם לקונסול וגם לElasticsearch)
-logger.info("שירות התחיל")
-logger.error("שגיאה במהלך עיבוד")
-logger.debug("מידע debug")
-```
+    # לוגר עם Elasticsearch מאובטח
+    secure_logger = Logger.get_logger(
+        name="secure-service",
+        es_url="https://user:password@es-cluster.example.com:9200",
+        index="secure_logs",
+        level=logging.DEBUG
+    )
 
-## ⚙️ משתני סביבה
+    # כתיבת לוגים
+    logger.info("שירות התחיל")
+    logger.error("שגיאה במהלך עיבוד")
 
-### Kafka
-```bash
-# אין משתני סביבה נדרשים - כתובת ברירת מחדל: localhost:9092
-```
+    # לוגר מקומי בלבד (ללא Elasticsearch)
+    local_logger = Logger.get_logger(name="local-service")
+    local_logger.info("לוג מקומי בלבד")
 
-### Elasticsearch
-```bash
-ELASTICSEARCH_SCHEME=http
-ELASTICSEARCH_HOST=localhost
-ELASTICSEARCH_PORT=9200
-ELASTICSEARCH_USERNAME=user
-ELASTICSEARCH_PASSWORD=pass
-ELASTICSEARCH_SONGS_INDEX=songs
-ELASTICSEARCH_LOGS_INDEX=logs
-```
-
-### אחסון קבצים
-```bash
-# נתיב בסיס לvolume (ברירת מחדל: /shared)
-FILE_STORAGE_BASE_PATH=/shared
+if __name__ == "__main__":
+    logger_example()
 ```
 
 ## 🏗️ דוגמה מלאה - שירות עיבוד אודיו
 
 ```python
 import asyncio
+import logging
 from shared.kafka import KafkaConsumerAsync, KafkaProducerAsync
-from shared.elasticsearch import get_song_repository
+from shared.repositories import RepositoryFactory
 from shared.storage import create_file_manager
 from shared.utils import Logger
 
-async def audio_processing_service():
+async def complete_audio_service_example():
+    # הגדרת פרמטרים (בדרך כלל יגיעו מקונפיגורציה)
+    kafka_servers = "localhost:9092"
+    es_host = "localhost"
+    es_port = 9200
+    storage_path = "/shared"
+
     # יצירת רכיבים
-    consumer = KafkaConsumerAsync(["audio.process.requested"], group_id="audio-service")
-    producer = KafkaProducerAsync()
-    song_repo = get_song_repository()
-    file_manager = create_file_manager()
+    consumer = KafkaConsumerAsync(
+        topics=["audio.process.requested"],
+        bootstrap_servers=kafka_servers,
+        group_id="audio-service"
+    )
+
+    producer = KafkaProducerAsync(bootstrap_servers=kafka_servers)
+
+    song_repo = RepositoryFactory.create_song_repository_from_params(
+        elasticsearch_host=es_host,
+        elasticsearch_port=es_port,
+        songs_index="songs",
+        async_mode=True
+    )
+
+    file_manager = create_file_manager("volume", base_path=storage_path)
     logger = Logger.get_logger("audio-service")
 
-    # התחלה
+    # התחלת שירותים
     await consumer.start()
     await producer.start()
 
     async def process_audio_message(message):
         try:
             video_id = message["value"]["video_id"]
-            logger.info(f"Processing audio for {video_id}")
+            logger.info(f"עיבוד אודיו עבור {video_id}")
 
             # קריאת אודיו מקורי
             original_audio = file_manager.get_original_audio(video_id)
+            if not original_audio:
+                logger.error(f"לא נמצא אודיו מקורי עבור {video_id}")
+                return False
 
-            # עיבוד הסרת ווקאל (קוד דמה)
-            processed_audio = remove_vocals(original_audio)
+            # עיבוד הסרת ווקאל (דמה)
+            processed_audio = original_audio + b"_vocals_removed"
 
             # שמירת תוצאה
             path = file_manager.save_vocals_removed_audio(video_id, processed_audio)
@@ -280,25 +435,47 @@ async def audio_processing_service():
                 "path": path
             })
 
+            logger.info(f"עיבוד אודיו הושלם עבור {video_id}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to process audio: {e}")
+            logger.error(f"נכשל עיבוד אודיו: {e}")
             await song_repo.mark_song_failed(video_id, "AUDIO_PROCESSING_FAILED", str(e), "audio-service")
             return False
 
     # האזנה להודעות
+    logger.info("שירות עיבוד אודיו התחיל")
     await consumer.listen_forever(process_audio_message)
 
 # הרצה
 if __name__ == "__main__":
-    asyncio.run(audio_processing_service())
+    asyncio.run(complete_audio_service_example())
 ```
 
 ## 📚 הערות חשובות
 
-- **אסינכרוני vs סינכרוני**: ברירת המחדל היא אסינכרוני. השתמש בסינכרוני רק אם צריך
-- **מפינג Elasticsearch**: המפינג לשירים קבוע ומותאם לפרויקט הקריוקי
-- **ניהול חיבורים**: תמיד קרא ל-`start()` ו-`stop()` ללקוחות Kafka
-- **טיפול בשגיאות**: השתמש ב-`mark_song_failed()` לדיווח שגיאות
-- **לוגר**: הלוגר שולח אוטומטית גם לקונסול וגם ל-Elasticsearch
+- **עצמאות**: כל כלי עובד באופן עצמאי עם פרמטרים מפורשים
+- **גמישות**: ניתן להשתמש בכלים עם כל מערכת קונפיגורציה
+- **בידוד**: כלי התשתית לא תלויים בקונפיגורציה ספציפית
+- **שימוש חוזר**: ניתן להשתמש בכלים בפרויקטים שונים
+
+## 🎯 מדריך מהיר
+
+### דפוסי Import
+```python
+# כלי תשתית גנרית
+from shared.storage import create_file_manager
+from shared.kafka import KafkaProducerAsync, KafkaConsumerSync
+from shared.elasticsearch import ElasticsearchFactory
+from shared.utils import Logger
+
+# לוגיקה עסקית ספציפית לפרויקט
+from shared.repositories import RepositoryFactory
+```
+
+### עקרונות שימוש
+
+1. **פרמטרים מפורשים**: כל כלי מקבל את הפרמטרים שלו במפורש
+2. **אין תלויות קונפיגורציה**: הכלים לא יודעים מאיפה מגיעים הפרמטרים
+3. **גמישות**: ניתן להשתמש עם כל מערכת קונפיגורציה או ללא כלל
+4. **עצמאות**: כל כלי עובד בלי תלות בפרויקט ספציפי
