@@ -102,7 +102,9 @@ class SongRepositorySync:
 
         results = []
         for hit in self.es.stream_all_documents(**search_params):
-            results.append(hit["_source"])
+            song = hit["_source"]
+            song["video_id"] = hit["_id"]
+            results.append(song)
 
         return results
 
@@ -112,7 +114,9 @@ class SongRepositorySync:
 
         results = []
         for hit in self.es.stream_all_documents(**search_params):
-            results.append(hit["_source"])
+            song = hit["_source"]
+            song["video_id"] = hit["_id"]
+            results.append(song)
 
         return results
 

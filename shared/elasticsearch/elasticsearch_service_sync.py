@@ -64,6 +64,7 @@ class ElasticsearchServiceSync:
         try:
             result = self.es.get(index=self.index_name, id=doc_id)
             source = result["_source"]
+            source["video_id"] = result["_id"]
             return source
         except NotFoundError:
             return None

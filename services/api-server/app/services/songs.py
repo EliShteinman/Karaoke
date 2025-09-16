@@ -1,12 +1,15 @@
-from typing import Dict, Any, Optional, List, Union
-
+from datetime import datetime
+from typing import Dict, Any, Optional, List
+import os
+import zipfile
 from shared.repositories.factory import RepositoryFactory
-from shared.storage.file_storage import create_file_manager
-from services.api_server.app.models import schemas
-from services.api_server.app.config import settings
+from shared.storage import create_file_manager
+from ..models import schemas
+from ..config import settings
 from shared.utils.logger import Logger
 
 logger = Logger.get_logger(__name__)
+
 
 # --- INTERNAL LOGIC ---
 def _is_song_ready(song_doc: Dict[str, Any]) -> bool:
@@ -26,20 +29,21 @@ def _calculate_progress(song_doc: Dict[str, Any]) -> schemas.Progress:
 
 async def get_all_songs() -> schemas.SongsResponse:
     """Fetches all available songs from the data source."""
+
     try:
         logger.info("Service: Getting song repository from factory.")
-        song_repo = RepositoryFactory.create_song_repository_from_config(settings, async_mode=True) # CORRECTED CALL
+        song_repo = RepositoryFactory.create_song_repository_from_config(settings, async_mode=True)
         logger.info("Service: Fetching all ready songs from repository.")
         ready_songs_docs = await song_repo.get_ready_songs()
         song_list = [
             schemas.SongListItem(
-                video_id=doc.get("video_id", "unknown"),  # Handle missing video_id
-                title=doc.get("title", ""),
-                artist=doc.get("artist", ""),
-                status=doc.get("status", "unknown"),
+                video_id=doc.get("video_id"),
+                title=doc.get("title"),
+                artist=doc.get("artist"),
+                status=doc.get("status"),
                 created_at=doc.get("created_at"),
-                thumbnail=doc.get("thumbnail", ""),
-                duration=doc.get("duration", 0),
+                thumbnail=doc.get("thumbnail"),
+                duration=doc.get("duration"),
                 files_ready=_is_song_ready(doc)
             ) for doc in ready_songs_docs
         ]
@@ -49,9 +53,9 @@ async def get_all_songs() -> schemas.SongsResponse:
         logger.error(f"Service: An unexpected error occurred while getting all songs. Error: {e}")
         return schemas.SongsResponse(songs=[])
 
-
 async def get_song_status(video_id: str) -> Optional[schemas.StatusResponse]:
     """Fetches the status of a specific song from the data source."""
+
     try:
         logger.info(f"Service: Getting song repository to fetch status for video_id: {video_id}.")
         song_repo = RepositoryFactory.create_song_repository_from_config(settings, async_mode=True)
@@ -62,16 +66,17 @@ async def get_song_status(video_id: str) -> Optional[schemas.StatusResponse]:
         logger.info(f"Service: Found document for video_id: {video_id}.")
         progress = _calculate_progress(song_doc)
         return schemas.StatusResponse(
-            video_id=video_id,  # Use the video_id parameter since the doc doesn't include it
-            status=song_doc.get("status", "unknown"),
+            video_id=song_doc["video_id"],
+            status=song_doc["status"],
             progress=progress
         )
     except Exception as e:
         logger.error(f"Service: An unexpected error occurred for video_id: {video_id}. Error: {e}")
         return None
 
-async def create_song_zip_file(video_id: str) -> Optional[bytes]:
+async def create_song_zip_file(video_id: str) -> Optional[str]:
     """Creates an in-memory ZIP package with the song's assets."""
+
     try:
         logger.info(f"Service: Creating file manager for ZIP creation for video_id: {video_id}.")
         file_manager = create_file_manager(base_path=settings.shared_audio_path.rsplit('/audio', 1)[0])
