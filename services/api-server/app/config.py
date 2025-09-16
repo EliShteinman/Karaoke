@@ -17,8 +17,10 @@ class APIServerConfig:
         self.elasticsearch_scheme = os.getenv("ELASTICSEARCH_SCHEME", "http")
         self.elasticsearch_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
         self.elasticsearch_port = int(os.getenv("ELASTICSEARCH_PORT", "9200"))
+        self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
         self.elasticsearch_username = os.getenv("ELASTICSEARCH_USERNAME")
         self.elasticsearch_password = os.getenv("ELASTICSEARCH_PASSWORD")
+
 
         # --- Other Service URLs ---
         # This was missing from the template but is required by the API server

@@ -9,5 +9,5 @@ pydantic-settings
 # For making HTTP requests to other services
 httpx
 
-# Dependency for the shared logger
-elasticsearch
+# Dependency for the shared logger and direct ES access
+elasticsearch[async]
