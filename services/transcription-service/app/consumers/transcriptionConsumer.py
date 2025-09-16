@@ -1,9 +1,9 @@
 from kafka import KafkaConsumer
 import json
 import os
-from app.services.speech_to_text import SpeechToTextService
-from app.services.lrc_generator import create_lrc_file
-from app.services.elasticsearch_updater import ElasticsearchUpdater
+from ..services.speech_to_text import SpeechToTextService
+from ..services.lrc_generator import create_lrc_file
+from ..services.elasticsearch_updater import ElasticsearchUpdater
 
 class TranscriptionConsumer:
     def __init__(self):
