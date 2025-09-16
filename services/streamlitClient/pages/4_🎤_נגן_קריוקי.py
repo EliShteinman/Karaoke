@@ -1,9 +1,9 @@
 import streamlit as st
 import zipfile
 import io
-from utils.api_client import get_song_assets
-from utils.lrc_parser import parse_lrc, LrcLine
-from utils.helpers import seconds_to_mmss
+from services.streamlitClient.api.api_client import get_song_assets
+from services.streamlitClient.api.lrc_parser import parse_lrc, LrcLine
+from services.streamlitClient.api.helpers import seconds_to_mmss
 
 st.set_page_config(page_title="נגן קריוקי", page_icon="🎤", layout="wide")
 

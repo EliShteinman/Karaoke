@@ -1,7 +1,6 @@
 import requests
 import streamlit as st
-from config import API_BASE_URL
-
+from app import API_BASE_URL
 def search(query: str):
     """Sends a search request to the API server."""
     try:

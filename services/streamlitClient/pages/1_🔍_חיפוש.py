@@ -1,6 +1,6 @@
 import streamlit as st
-from utils.api_client import search, download_song
-from utils.helpers import show_youtube_player
+from services.streamlitClient.api.api_client import search, download_song
+from services.streamlitClient.api.helpers import show_youtube_player
 
 st.set_page_config(page_title="חיפוש שירים", page_icon="🔍")
 st.title("🔍 חיפוש והורדת שירים")

@@ -1,6 +1,6 @@
 import streamlit as st
-from utils.api_client import get_songs_library
-from utils.helpers import seconds_to_mmss
+from services.streamlitClient.api.api_client import get_songs_library
+from services.streamlitClient.api.helpers import seconds_to_mmss
 
 st.set_page_config(page_title="ספריית השירים", page_icon="📚")
 st.title("📚 ספריית השירים המוכנים")

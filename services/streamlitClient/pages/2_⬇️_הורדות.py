@@ -1,6 +1,6 @@
 import streamlit as st
 import time
-from utils.api_client import get_song_status
+from services.streamlitClient.api.api_client import get_song_status
 
 st.set_page_config(page_title="מעקב הורדות", page_icon="⬇️")
 st.title("⬇️ מעקב אחר התקדמות ההורדות")
