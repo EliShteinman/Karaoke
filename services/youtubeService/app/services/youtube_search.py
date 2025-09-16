@@ -1,26 +1,25 @@
 from typing import Optional
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from services.youtubeService.app.config.youtube_config import (
-    YOUTUBE_API_KEY,
-    YOUTUBE_API_SERVICE_NAME,
-    YOUTUBE_API_VERSION,
-)
+from services.youtubeService.app.config.config import config
 from services.youtubeService.app.models.youtube_models import SearchResponse, SearchResult
 from shared.utils.logger import Logger
 
 
 class YouTubeSearchService:
-    def __init__(self, api_key: Optional[str] = YOUTUBE_API_KEY):
+    def __init__(self, api_key: Optional[str] = config.YOUTUBE_API_KEY):
         if not api_key:
             raise ValueError("YouTube API key is required")
         self.api_key = api_key
         self.youtube = build(
-            YOUTUBE_API_SERVICE_NAME,
-            YOUTUBE_API_VERSION,
+            config.YOUTUBE_API_SERVICE_NAME,
+            config.YOUTUBE_API_VERSION,
             developerKey=self.api_key,
         )
-        self.logger = Logger.get_logger("youtube_service.search")
+        # Initialize logger with proper configuration
+        logger_config = config.get_logger_config()
+        logger_config["name"] = "youtube_service.search"
+        self.logger = Logger.get_logger(**logger_config)
         self.logger.info("YouTubeSearchService initialized")
 
     def search(self, query: str, max_results: int = 10) -> SearchResponse:

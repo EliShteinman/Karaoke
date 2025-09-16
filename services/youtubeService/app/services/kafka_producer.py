@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from services.youtubeService.app.config.settings import KAFKA_BOOTSTRAP_SERVERS
+from services.youtubeService.app.config.config import config
 from shared.kafka.sync_client import KafkaProducerSync
 from shared.utils.logger import Logger
 
@@ -10,9 +10,14 @@ class YouTubeServiceKafkaProducer:
     Handles sending messages to various topics as per schema requirements
     """
 
-    def __init__(self, bootstrap_servers: str = KAFKA_BOOTSTRAP_SERVERS):
+    def __init__(self, bootstrap_servers: str = config.KAFKA_BOOTSTRAP_SERVERS):
         self.bootstrap_servers = bootstrap_servers
-        self.logger = Logger.get_logger("youtube_service.kafka_producer")
+
+        # Initialize logger with proper configuration
+        logger_config = config.get_logger_config()
+        logger_config["name"] = "youtube_service.kafka_producer"
+        self.logger = Logger.get_logger(**logger_config)
+
         self.producer = KafkaProducerSync(bootstrap_servers=bootstrap_servers)
         self.logger.info("YouTubeServiceKafkaProducer initialized")
 

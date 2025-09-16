@@ -11,14 +11,7 @@ from services.youtubeService.app.models.youtube_models import (
     TranscriptionRequestMessage,
     DownloadErrorMessage
 )
-from services.youtubeService.app.config.settings import (
-    ELASTICSEARCH_HOST,
-    ELASTICSEARCH_PORT,
-    ELASTICSEARCH_SCHEME,
-    ELASTICSEARCH_INDEX,
-    KAFKA_BOOTSTRAP_SERVERS,
-    SHARED_STORAGE_PATH
-)
+from services.youtubeService.app.config.config import config
 from shared.utils.logger import Logger
 from shared.repositories.factory import RepositoryFactory
 from shared.kafka.sync_client import KafkaProducerSync
@@ -26,20 +19,24 @@ from shared.storage.file_storage import create_file_manager
 
 
 class YouTubeDownloadService:
-    def __init__(self, base_path: str = SHARED_STORAGE_PATH):
+    def __init__(self, base_path: str = config.SHARED_STORAGE_PATH):
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
-        self.logger = Logger.get_logger("youtube_service.download")
+
+        # Initialize logger with proper configuration
+        logger_config = config.get_logger_config()
+        logger_config["name"] = "youtube_service.download"
+        self.logger = Logger.get_logger(**logger_config)
 
         # Initialize shared services using proper configuration
         self.song_repository = RepositoryFactory.create_song_repository_from_params(
-            elasticsearch_host=ELASTICSEARCH_HOST,
-            elasticsearch_port=ELASTICSEARCH_PORT,
-            elasticsearch_scheme=ELASTICSEARCH_SCHEME,
-            songs_index=ELASTICSEARCH_INDEX,
+            elasticsearch_host=config.ELASTICSEARCH_HOST,
+            elasticsearch_port=config.ELASTICSEARCH_PORT,
+            elasticsearch_scheme=config.ELASTICSEARCH_SCHEME,
+            songs_index=config.ELASTICSEARCH_INDEX,
             async_mode=False  # Use sync repository for YouTube service
         )
-        self.kafka_producer = KafkaProducerSync(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
+        self.kafka_producer = KafkaProducerSync(bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS)
         self.file_manager = create_file_manager(storage_type="volume", base_path="./data")
 
         self.logger.info("YouTubeDownloadService initialized with shared services")

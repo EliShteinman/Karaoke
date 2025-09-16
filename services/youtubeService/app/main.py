@@ -6,12 +6,14 @@ from services.youtubeService.app.models.youtube_models import (
 )
 from services.youtubeService.app.services.youtube_search import YouTubeSearchService
 from services.youtubeService.app.services.youtube_download import YouTubeDownloadService
+from services.youtubeService.app.config.config import config
 from shared.utils.logger import Logger
 
 app = FastAPI(title="YouTube Service")
 
-# Initialize shared logger
-logger = Logger.get_logger("youtube_service.main")
+# Initialize shared logger with proper configuration
+logger_config = config.get_logger_config()
+logger = Logger.get_logger(**logger_config)
 
 # Initialize services
 youtube_service = YouTubeSearchService()
