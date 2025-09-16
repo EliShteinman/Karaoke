@@ -7,9 +7,9 @@ from shared.utils.logger import Logger
 from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
 
 # Import local services
-from ..services.speech_to_text import SpeechToTextService
-from ..services.lrc_generator import create_lrc_file
-from ..services.elasticsearch_updater import ElasticsearchUpdater
+from services.transcriptionService.app.services.speech_to_text import SpeechToTextService
+from services.transcriptionService.app.services.lrc_generator import create_lrc_file
+from services.transcriptionService.app.services.elasticsearch_updater import ElasticsearchUpdater
 
 class TranscriptionConsumer:
     def __init__(self):
