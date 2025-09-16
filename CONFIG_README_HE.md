@@ -1,278 +1,277 @@
-# מדריך קונפיגורציה - פרויקט קריוקי עברי
+# מדריך קונפיגורציה - פרויקט HebKaraoke
 
-מדריך מלא למערכת הקונפיגורציה המרכזית ב-`/config.py`.
+## ⚠️ חשוב להבין!
+
+הקובץ `/config.py` הוא **תבנית המכילה את כל משתני הסביבה שכלי הספריות המשותפות דורשים** - לא קובץ קונפיגורציה אמיתי!
+
+### מה הקובץ הזה מכיל:
+- ✅ **כל המשתנים שספריית shared דורשת** מכל שירות
+- ✅ **תיעוד מפורט** של כל משתנה ומה הוא עושה
+- ✅ **תבנית להעתקה חובה** לכל שירות כשהוא מופרד
+- ❌ **לא** קובץ שכולם משתמשים בו יחד
 
 ## 🔧 איך הקונפיגורציה עובדת
 
-מערכת הקונפיגורציה היא **מרכזית ומודולרית**. לכל שירות יש מחלקת קונפיגורציה עצמאית שמגדירה במפורש את כל משתני הסביבה שהוא צריך.
+**כל שירות חייב ליצור קובץ קונפיגורציה משלו ולהעתיק את כל המשתנים הרלוונטיים!**
 
-### עקרונות יסוד:
-1. **עצמאות**: כל שירות רואה את כל הפרמטרים שהוא צריך במקום אחד
-2. **מפורש**: אין תלויות נסתרות או קונפיגורציה גלובלית משותפת
-3. **ברירות מחדל חכמות**: ברירות מחדל בטוחות לפיתוח, אימות נדרש להגדרות קריטיות
-4. **כפילות במתכוון**: גם אם שירותים משתמשים באותה תשתית, כל אחד מגדיר את הפרמטרים שלו לבהירות
+### עקרונות מפתח:
+1. **העתקה חובה**: כל שירות חייב להעתיק את כל המשתנים שספריית shared דורשת ממנו
+2. **עצמאות מלאה**: כל שירות יוצר קובץ קונפיגורציה משלו
+3. **בסיס + תוספות**: משתנים מהתבנית הם בסיס חובה, השירות יכול להוסיף משתנים פנימיים
+4. **אין ברירה**: אי אפשר לדלג על משתנים שספריית shared דורשת
 
-## 📋 מחלקות קונפיגורציה של שירותים
-
-### איך כל שירות מייבא קונפיגורציה
+## 🚀 איך כל שירות משתמש בקונפיגורציה
 
 ```python
-# בכל שירות - ייבוא הקונפיגורציה המרכזית
-from config import config
+# כל שירות יוצר קובץ config.py משלו
+# services/youtube-service/config.py
+import os
 
-# שירות יוטיוב
-class YouTubeService:
+class Config:
     def __init__(self):
-        # השירות מקבל רק את הקונפיגורציה שלו
-        self.service_config = config.youtube_service
+        # 🔴 חובה - כל המשתנים שספריית shared דורשת
+        self.kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+        self.elasticsearch_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
 
-        # כל הפרמטרים זמינים בקונפיגורציה שלו
-        self.api_key = self.service_config.api_key
-        self.kafka_servers = self.service_config.kafka_bootstrap_servers
-        self.es_host = self.service_config.elasticsearch_host
+        # 🟢 תוספות - משתנים פנימיים של השירות
+        self.api_key = os.getenv("YOUTUBE_API_KEY")
+        if not self.api_key:
+            raise ValueError("YOUTUBE_API_KEY is required for YouTube functionality")
 
-# שירות אודיו
-class AudioService:
-    def __init__(self):
-        # השירות מקבל רק את הקונפיגורציה שלו
-        self.service_config = config.audio_service
-
-        # כל הפרמטרים זמינים בקונפיגורציה שלו
-        self.kafka_servers = self.service_config.kafka_bootstrap_servers
-        self.es_host = self.service_config.elasticsearch_host
-        self.storage_path = self.service_config.storage_base_path
-
-# שרת API
-class APIServer:
-    def __init__(self):
-        # השירות מקבל רק את הקונפיגורציה שלו
-        self.service_config = config.api_server
-
-        # כל הפרמטרים זמינים בקונפיגורציה שלו
-        self.host = self.service_config.host
-        self.port = self.service_config.port
-        self.kafka_servers = self.service_config.kafka_bootstrap_servers
+# יצירת מופע קונפיגורציה
+config = Config()
 ```
 
-## ⚙️ משתני סביבה לפי שירות
+## ⚙️ משתני כלים חובה לפי שירות
 
-### שירות יוטיוב (`config.youtube_service`)
+בהתבסס על ההנחיות ארכיטקטוניות וספריית shared:
 
-**הגדרות ספציפיות לשירות:**
+### API Server
+**משתמש בכלים:** Elasticsearch (קריאה בלבד)
+
+**🔴 משתנים חובה (נדרשים על ידי כלי shared):**
 ```bash
-YOUTUBE_API_KEY=your_api_key                    # נדרש - אין ברירת מחדל
-YOUTUBE_MAX_RESULTS=10                          # אופציונלי
-YOUTUBE_DOWNLOAD_QUALITY=bestaudio             # אופציונלי
-YOUTUBE_DOWNLOAD_FORMAT=mp3                    # אופציונלי
+# הגדרות שרת
+API_HOST=0.0.0.0                               # כתובת IP של השרת
+API_PORT=8000                                  # פורט השרת
+API_DEBUG=false                                # מצב דיבוג
+API_CORS_ORIGINS=*                             # CORS origins מותרים
+
+# חיבור Elasticsearch - נדרש על ידי כלי shared/elasticsearch
+ELASTICSEARCH_HOST=localhost                    # כתובת שרת Elasticsearch
+ELASTICSEARCH_PORT=9200                         # פורט Elasticsearch
+ELASTICSEARCH_SCHEME=http                       # פרוטוקול
+ELASTICSEARCH_USERNAME=                         # שם משתמש (אם נדרש אימות)
+ELASTICSEARCH_PASSWORD=                         # סיסמה (אם נדרש אימות)
 ```
 
-**תלויות תשתית (מוגדרות במפורש עבור השירות הזה):**
+### YouTube Service
+**משתמש בכלים:** Kafka, Elasticsearch, Storage
+
+**🔴 משתנים חובה (נדרשים על ידי כלי shared):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # אופציונלי - יש ברירת מחדל
-KAFKA_CONSUMER_GROUP_YOUTUBE=youtube-service   # אופציונלי - יש ברירת מחדל
-KAFKA_TOPIC_DOWNLOAD_REQUESTED=song.download.requested  # אופציונלי - יש ברירת מחדל
-KAFKA_TOPIC_SONG_DOWNLOADED=song.downloaded    # אופציונלי - יש ברירת מחדל
+# חיבור Kafka - נדרש על ידי כלי shared/kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # רשימת שרתי Kafka
+KAFKA_CONSUMER_GROUP_YOUTUBE=youtube-service   # קבוצת צרכנים
+KAFKA_TOPIC_DOWNLOAD_REQUESTED=song.download.requested  # נושא בקשה
+KAFKA_TOPIC_SONG_DOWNLOADED=song.downloaded    # נושא השלמה
 
-ELASTICSEARCH_HOST=localhost                    # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_PORT=9200                         # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_SCHEME=http                       # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_USERNAME=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_PASSWORD=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_SONGS_INDEX=songs                # אופציונלי - יש ברירת מחדל
+# חיבור Elasticsearch - נדרש על ידי כלי shared/elasticsearch
+ELASTICSEARCH_HOST=localhost                    # כתובת שרת Elasticsearch
+ELASTICSEARCH_PORT=9200                         # פורט Elasticsearch
+ELASTICSEARCH_SCHEME=http                       # פרוטוקול
+ELASTICSEARCH_USERNAME=                         # שם משתמש (אם נדרש אימות)
+ELASTICSEARCH_PASSWORD=                         # סיסמה (אם נדרש אימות)
+ELASTICSEARCH_SONGS_INDEX=songs                # אינדקס השירים
 
-STORAGE_BASE_PATH=/shared                       # אופציונלי - יש ברירת מחדל
+# אחסון קבצים - נדרש על ידי כלי shared/storage
+STORAGE_BASE_PATH=/shared                       # תיקיית בסיס לקבצים
 ```
 
-### שירות אודיו (`config.audio_service`)
-
-**הגדרות ספציפיות לשירות:**
+**🟢 משתני שירות פנימיים (תוספות):**
 ```bash
-AUDIO_VOCAL_REMOVAL_METHOD=spleeter            # אופציונלי - יש ברירת מחדל
-AUDIO_OUTPUT_FORMAT=mp3                        # אופציונלי - יש ברירת מחדל
-AUDIO_SAMPLE_RATE=44100                        # אופציונלי - יש ברירת מחדל
-AUDIO_BITRATE=128k                             # אופציונלי - יש ברירת מחדל
+# תוספות ספציפיות לשירות YouTube
+YOUTUBE_API_KEY=your_api_key                    # מפתח API של YouTube
+YOUTUBE_MAX_RESULTS=10                          # כמות תוצאות חיפוש
+YOUTUBE_DOWNLOAD_QUALITY=bestaudio             # איכות הורדה
+YOUTUBE_DOWNLOAD_FORMAT=mp3                    # פורמט קובץ
 ```
 
-**תלויות תשתית (מוגדרות במפורש עבור השירות הזה):**
+### Audio Processing Service
+**משתמש בכלים:** Kafka, Elasticsearch, Storage
+
+**🔴 משתנים חובה (נדרשים על ידי כלי shared):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # אופציונלי - יש ברירת מחדל
-KAFKA_CONSUMER_GROUP_AUDIO=audio-service       # אופציונלי - יש ברירת מחדל
-KAFKA_TOPIC_AUDIO_PROCESS_REQUESTED=audio.process.requested  # אופציונלי - יש ברירת מחדל
-KAFKA_TOPIC_VOCALS_PROCESSED=audio.vocals_processed  # אופציונלי - יש ברירת מחדל
+# חיבור Kafka - נדרש על ידי כלי shared/kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # רשימת שרתי Kafka
+KAFKA_CONSUMER_GROUP_AUDIO=audio-service       # קבוצת צרכנים
+KAFKA_TOPIC_AUDIO_PROCESS_REQUESTED=audio.process.requested  # נושא בקשה
+KAFKA_TOPIC_VOCALS_PROCESSED=audio.vocals_processed  # נושא השלמה
 
-ELASTICSEARCH_HOST=localhost                    # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_PORT=9200                         # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_SCHEME=http                       # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_USERNAME=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_PASSWORD=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_SONGS_INDEX=songs                # אופציונלי - יש ברירת מחדל
+# חיבור Elasticsearch - נדרש על ידי כלי shared/elasticsearch
+ELASTICSEARCH_HOST=localhost                    # כתובת שרת Elasticsearch
+ELASTICSEARCH_PORT=9200                         # פורט Elasticsearch
+ELASTICSEARCH_SCHEME=http                       # פרוטוקול
+ELASTICSEARCH_USERNAME=                         # שם משתמש (אם נדרש אימות)
+ELASTICSEARCH_PASSWORD=                         # סיסמה (אם נדרש אימות)
+ELASTICSEARCH_SONGS_INDEX=songs                # אינדקס השירים
 
-STORAGE_BASE_PATH=/shared                       # אופציונלי - יש ברירת מחדל
+# אחסון קבצים - נדרש על ידי כלי shared/storage
+STORAGE_BASE_PATH=/shared                       # תיקיית בסיס לקבצים
 ```
 
-### שרת API (`config.api_server`)
-
-**הגדרות ספציפיות לשירות:**
+**🟢 משתני שירות פנימיים (תוספות):**
 ```bash
-API_HOST=0.0.0.0                               # אופציונלי - יש ברירת מחדל
-API_PORT=8000                                  # אופציונלי - יש ברירת מחדל
-API_DEBUG=false                                # אופציונלי - יש ברירת מחדל
-API_CORS_ORIGINS=*                             # אופציונלי - יש ברירת מחדל
+# תוספות ספציפיות לעיבוד אודיו
+AUDIO_VOCAL_REMOVAL_METHOD=spleeter            # שיטת הסרת שירה
+AUDIO_OUTPUT_FORMAT=mp3                        # פורמט פלט
+AUDIO_SAMPLE_RATE=44100                        # קצב דגימה
+AUDIO_BITRATE=128k                             # איכות bitrate
 ```
 
-**תלויות תשתית (מוגדרות במפורש עבור השירות הזה):**
+### Transcription Service
+**משתמש בכלים:** Kafka, Elasticsearch, Storage
+
+**🔴 משתנים חובה (נדרשים על ידי כלי shared):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # אופציונלי - יש ברירת מחדל
+# חיבור Kafka - נדרש על ידי כלי shared/kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # רשימת שרתי Kafka
+KAFKA_CONSUMER_GROUP_TRANSCRIPTION=transcription-service  # קבוצת צרכנים
+KAFKA_TOPIC_TRANSCRIPTION_REQUESTED=transcription.process.requested  # נושא בקשה
+KAFKA_TOPIC_TRANSCRIPTION_DONE=transcription.done  # נושא השלמה
 
-ELASTICSEARCH_HOST=localhost                    # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_PORT=9200                         # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_SCHEME=http                       # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_USERNAME=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_PASSWORD=                         # אופציונלי - אין ברירת מחדל (אימות)
+# חיבור Elasticsearch - נדרש על ידי כלי shared/elasticsearch
+ELASTICSEARCH_HOST=localhost                    # כתובת שרת Elasticsearch
+ELASTICSEARCH_PORT=9200                         # פורט Elasticsearch
+ELASTICSEARCH_SCHEME=http                       # פרוטוקול
+ELASTICSEARCH_USERNAME=                         # שם משתמש (אם נדרש אימות)
+ELASTICSEARCH_PASSWORD=                         # סיסמה (אם נדרש אימות)
+ELASTICSEARCH_SONGS_INDEX=songs                # אינדקס השירים
+
+# אחסון קבצים - נדרש על ידי כלי shared/storage
+STORAGE_BASE_PATH=/shared                       # תיקיית בסיס לקבצים
 ```
 
-### שירות תמלול (`config.transcription_service`)
-
-**הגדרות ספציפיות לשירות:**
+**🟢 משתני שירות פנימיים (תוספות):**
 ```bash
-TRANSCRIPTION_MODEL_NAME=whisper-base          # אופציונלי - יש ברירת מחדל
-TRANSCRIPTION_LANGUAGE=auto                    # אופציונלי - יש ברירת מחדל
-TRANSCRIPTION_OUTPUT_FORMAT=lrc                # אופציונלי - יש ברירת מחדל
+# תוספות ספציפיות לתמלול
+TRANSCRIPTION_MODEL_NAME=whisper-base          # מודל זיהוי
+TRANSCRIPTION_LANGUAGE=auto                    # שפת זיהוי
+TRANSCRIPTION_OUTPUT_FORMAT=lrc                # פורמט פלט
 ```
 
-**תלויות תשתית (מוגדרות במפורש עבור השירות הזה):**
+### Streamlit Client
+**משתמש בכלים:** חיבור HTTP ל-API Server
+
+**🔴 משתנים חובה (נדרשים על ידי כלי shared):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # אופציונלי - יש ברירת מחדל
-KAFKA_CONSUMER_GROUP_TRANSCRIPTION=transcription-service  # אופציונלי - יש ברירת מחדל
-KAFKA_TOPIC_TRANSCRIPTION_REQUESTED=transcription.process.requested  # אופציונלי - יש ברירת מחדל
-KAFKA_TOPIC_TRANSCRIPTION_DONE=transcription.done  # אופציונלי - יש ברירת מחדל
-
-ELASTICSEARCH_HOST=localhost                    # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_PORT=9200                         # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_SCHEME=http                       # אופציונלי - יש ברירת מחדל
-ELASTICSEARCH_USERNAME=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_PASSWORD=                         # אופציונלי - אין ברירת מחדל (אימות)
-ELASTICSEARCH_SONGS_INDEX=songs                # אופציונלי - יש ברירת מחדל
-
-STORAGE_BASE_PATH=/shared                       # אופציונלי - יש ברירת מחדל
+# חיבור API Server - נדרש על ידי כלי shared/http
+STREAMLIT_API_BASE_URL=http://localhost:8000   # כתובת שרת API
 ```
 
-### לקוח Streamlit (`config.streamlit_client`)
-
-**הגדרות ספציפיות לשירות:**
+**🟢 משתני שירות פנימיים (תוספות):**
 ```bash
-STREAMLIT_TITLE=HebKaraoke                     # אופציונלי - יש ברירת מחדל
-STREAMLIT_THEME=dark                           # אופציונלי - יש ברירת מחדל
-STREAMLIT_API_BASE_URL=http://localhost:8000   # אופציונלי - יש ברירת מחדל
+# תוספות ספציפיות לממשק
+STREAMLIT_TITLE=HebKaraoke                     # כותרת האפליקציה
+STREAMLIT_THEME=dark                           # הגדרת נושא
 ```
 
-## 🏗️ הגדרות פרויקט גלובליות
+## 📋 הוראות ליצירת קובץ קונפיגורציה לשירות
 
-**מטא-נתוני פרויקט:**
+### 🚨 חובה לכל שירות!
+
+כשמפרסים כל שירות בקונטיינרים נפרדים, **חובה** ליצור קובץ `config.py` נפרד לכל שירות.
+
+### שלב 1: יצירת הקובץ
 ```bash
-PROJECT_NAME=HebKaraoke                        # אופציונלי - יש ברירת מחדל
-PROJECT_VERSION=1.0.0                         # אופציונלי - יש ברירת מחדל
-ENVIRONMENT=development                        # אופציונלי - יש ברירת מחדל (development/production)
+# יצירת קובץ קונפיגורציה בתיקיית השירות
+touch services/youtube-service/config.py
 ```
 
-## 🔐 אבטחת קונפיגורציה
+### שלב 2: העתקה חובה של משתנים משותפים
+**העתקת כל המשתנים הרלוונטיים מ-`/config.py` בדיוק כמו שהם:**
 
-### משתנים נדרשים מול אופציונליים
-
-**נדרש** (יזרוק שגיאה אם חסר):
-- `YOUTUBE_API_KEY` - קריטי לתפקוד שירות יוטיוב
-
-**אופציונלי** (יש ברירות מחדל בטוחות):
-- כל הגדרות התשתית (כתובות, פורטים, וכו')
-- כל הגדרות ספציפיות לשירותים
-
-### אסטרטגיית ברירות מחדל חכמות
-
-- **הגדרות תשתית**: ברירת מחדל לערכי פיתוח localhost
-- **מפתחות API קריטיים**: אין ברירות מחדל - חייבים להינתן במפורש
-- **הגדרות שירותים**: ברירות מחדל הגיוניות לשימוש טיפוסי
-
-### קונפיגורציה ספציפית לסביבה
+לדוגמה, עבור שירות YouTube:
 
 ```python
-from config import config
+# services/youtube-service/config.py
+import os
 
-# בדיקת סביבה
-if config.is_production():
-    # לוגיקה ספציפית לייצור
-    pass
-elif config.is_development():
-    # לוגיקה ספציפית לפיתוח
-    pass
+class Config:
+    def __init__(self):
+        # 🔴 חובה - העתקה מדויקת מהתבנית
+        # כל המשתנים שספריית shared דורשת:
+
+        # קונפיגורציית Kafka
+        self.kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+        self.kafka_consumer_group = os.getenv("KAFKA_CONSUMER_GROUP_YOUTUBE", "youtube-service")
+        self.kafka_topic_download_requested = os.getenv("KAFKA_TOPIC_DOWNLOAD_REQUESTED", "song.download.requested")
+        self.kafka_topic_song_downloaded = os.getenv("KAFKA_TOPIC_SONG_DOWNLOADED", "song.downloaded")
+
+        # קונפיגורציית Elasticsearch
+        self.elasticsearch_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+        self.elasticsearch_port = int(os.getenv("ELASTICSEARCH_PORT", "9200"))
+        self.elasticsearch_scheme = os.getenv("ELASTICSEARCH_SCHEME", "http")
+        self.elasticsearch_username = os.getenv("ELASTICSEARCH_USERNAME")
+        self.elasticsearch_password = os.getenv("ELASTICSEARCH_PASSWORD")
+        self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
+
+        # קונפיגורציית אחסון
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
+
+        # 🟢 תוספות - משתני שירות פנימיים
+        self.api_key = os.getenv("YOUTUBE_API_KEY")
+        if not self.api_key:
+            raise ValueError("YOUTUBE_API_KEY environment variable is required")
+
+        self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))
+        self.download_quality = os.getenv("YOUTUBE_DOWNLOAD_QUALITY", "bestaudio")
+        self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "mp3")
+
+# יצירת מופע קונפיגורציה
+config = Config()
 ```
 
-## 📚 דוגמאות קונפיגורציה
+### ✅ רשימת בדיקה לכל שירות:
 
-### סביבת פיתוח (.env)
-```bash
-# רק משתנים נדרשים
-YOUTUBE_API_KEY=your_actual_api_key
+1. **העתק את כל המשתנים החובה** מהתבנית ב-`/config.py` - אלו שספריית shared דורשת
+2. **אי אפשר לדלג על משתנה** שספריית shared צריכה
+3. **הוסף משתנים פנימיים** של השירות לפי הצורך (מפתחות API, הגדרות ספציפיות)
+4. **וודא שכל המשתנים מתועדים** עם הסבר מה הם עושים
+5. **צור מופע `config`** בסוף הקובץ
 
-# כל השאר משתמשים בברירות מחדל לפיתוח מקומי
-```
+### 🟢 מדריך להוספת משתנים פנימיים
 
-### סביבת ייצור (.env)
-```bash
-# נדרש
-YOUTUBE_API_KEY=your_production_api_key
+**משתנים מהתבנית הם בסיס חובה!** על הבסיס הזה, כל שירות יכול להוסיף את המשתנים הפנימיים שלו.
 
-# עקיפות תשתית
-KAFKA_BOOTSTRAP_SERVERS=kafka-cluster:9092
-ELASTICSEARCH_HOST=elastic-cluster
-ELASTICSEARCH_USERNAME=production_user
-ELASTICSEARCH_PASSWORD=production_password
-STORAGE_BASE_PATH=/production/shared
+#### דוגמאות למשתנים פנימיים:
 
-# סביבה
-ENVIRONMENT=production
-```
-
-### סביבת Docker Compose
-```bash
-# פורטים ספציפיים לשירות
-API_PORT=8080
-STREAMLIT_API_BASE_URL=http://api-server:8080
-
-# כתובות צביר
-KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-ELASTICSEARCH_HOST=elasticsearch
-```
-
-## 🎯 שיטות עבודה מומלצות
-
-1. **בידוד שירותים**: כל שירות ניגש רק ל-`config.{service_name}`
-2. **פרמטרים מפורשים**: העברת קונפיגורציה במפורש לכלים משותפים
-3. **קבצי סביבה**: שימוש בקבצי `.env` להגדרות ספציפיות לסביבה
-4. **אבטחה**: לעולם לא לבצע commit של מפתחות API או סיסמאות לבקרת גרסאות
-5. **תיעוד**: עדכון המדריך הזה בעת הוספת אפשרויות קונפיגורציה חדשות
-
-## 🚀 שימוש בשירותים
-
+**שירות YouTube:**
 ```python
-# services/youtube-service/main.py
-from config import config
-from shared.kafka import KafkaProducerAsync
-from shared.repositories import RepositoryFactory
-
-def main():
-    # קבלת קונפיגורציית שירות
-    service_config = config.youtube_service
-
-    # יצירת רכיבים עם קונפיגורציה מפורשת
-    producer = KafkaProducerAsync(
-        bootstrap_servers=service_config.kafka_bootstrap_servers
-    )
-
-    song_repo = RepositoryFactory.create_song_repository_from_config(
-        service_config, async_mode=True
-    )
-
-    # לוגיקת שירות כאן...
+# משתנים פנימיים ספציפיים ל-YouTube
+self.api_key = os.getenv("YOUTUBE_API_KEY")  # מפתח API
+self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))  # כמות תוצאות
+self.timeout = int(os.getenv("YOUTUBE_TIMEOUT", "30"))  # Timeout
 ```
 
-גישה זו מבטיחה שלכל שירות יש נראות מלאה לכל הקונפיגורציה שהוא צריך תוך שמירה על הפרדה נקייה בין שירותים.
+**שירות אודיו:**
+```python
+# משתנים פנימיים ספציפיים לעיבוד אודיו
+self.threads = int(os.getenv("AUDIO_THREADS", "4"))  # כמות threads
+self.temp_dir = os.getenv("AUDIO_TEMP_DIR", "/tmp")  # תיקיית זמני
+```
+
+#### עקרונות להוספת משתנים פנימיים:
+
+1. **תמיד על בסיס חובה** - קודם להעתיק משתנים שספריית shared דורשת
+2. **קידומת שירות** (YOUTUBE_, AUDIO_, וכו')
+3. **ברירת מחדל הגיונית**
+4. **תיעוד מה המשתנה עושה**
+
+### 🎯 יתרונות הגישה הזו:
+1. **ספריית shared עובדת** - כל הכלים מקבלים את המשתנים שהם צריכים
+2. **עצמאות מלאה** - כל קונטיינר רואה רק מה שהוא צריך
+3. **גמישות** - כל שירות יכול להוסיף משתנים פנימיים
+4. **אבטחה** - אין חשיפה למשתנים של שירותים אחרים
+5. **תחזוקה קלה** - שינוי בספריית shared דורש עדכון תבנית בלבד

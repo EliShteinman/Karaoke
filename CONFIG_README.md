@@ -1,278 +1,288 @@
 # Configuration Guide - HebKaraoke Project
 
-Complete guide for the centralized configuration system in `/config.py`.
+## ⚠️ Important to Understand!
+
+The file `/config.py` is a **template containing all environment variables that shared tools require** - not an actual configuration file!
+
+### What this file contains:
+- ✅ **All variables that shared directory requires** for each service
+- ✅ **Detailed documentation** of each variable and what it does
+- ✅ **Template for mandatory copying** for each service when separated
+- ❌ **NOT** a file that everyone uses together
 
 ## 🔧 How Configuration Works
 
-The configuration system is **centralized and modular**. Each service has a self-contained configuration class that explicitly defines ALL environment variables it needs.
+**Each service must create its own configuration file and copy all relevant variables!**
 
 ### Key Principles:
-1. **Self-Contained**: Each service sees ALL parameters it needs in one place
-2. **Explicit**: No hidden dependencies or shared global configuration
-3. **Smart Defaults**: Safe defaults for development, required validation for critical settings
-4. **Duplication by Design**: Even if services use the same infrastructure, each defines its own parameters for clarity
+1. **Mandatory copying**: Each service must copy all variables that shared directory requires from it
+2. **Complete independence**: Each service creates its own configuration file
+3. **Base + additions**: Variables from template are mandatory base, service can add internal variables
+4. **No choice**: Cannot skip variables that shared directory requires
 
-## 📋 Service Configuration Classes
+## 🚀 How Each Service Uses Configuration
 
-### How Each Service Imports Configuration
-
+### During development phase (all services together):
 ```python
-# In every service - import the central configuration
+# In every service - import from central file
 from config import config
 
-# YouTube Service
 class YouTubeService:
     def __init__(self):
-        # The service receives only its own configuration
         self.service_config = config.youtube_service
+```
 
-        # All parameters are available in its configuration
-        self.api_key = self.service_config.api_key
-        self.kafka_servers = self.service_config.kafka_bootstrap_servers
-        self.es_host = self.service_config.elasticsearch_host
+### During deployment phase (each service in separate container):
+```python
+# Each service creates its own config.py file
+# services/youtube-service/config.py
+import os
 
-# Audio Service
-class AudioService:
+class Config:
     def __init__(self):
-        # The service receives only its own configuration
-        self.service_config = config.audio_service
+        # 🔴 Mandatory - all variables that shared directory requires
+        self.kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+        self.elasticsearch_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
 
-        # All parameters are available in its configuration
-        self.kafka_servers = self.service_config.kafka_bootstrap_servers
-        self.es_host = self.service_config.elasticsearch_host
-        self.storage_path = self.service_config.storage_base_path
+        # 🟢 Additions - internal service variables
+        self.api_key = os.getenv("YOUTUBE_API_KEY")
+        if not self.api_key:
+            raise ValueError("YOUTUBE_API_KEY is required for YouTube functionality")
 
-# API Server
-class APIServer:
-    def __init__(self):
-        # The service receives only its own configuration
-        self.service_config = config.api_server
-
-        # All parameters are available in its configuration
-        self.host = self.service_config.host
-        self.port = self.service_config.port
-        self.kafka_servers = self.service_config.kafka_bootstrap_servers
+# Create configuration instance
+config = Config()
 ```
 
-## ⚙️ Environment Variables by Service
+## ⚙️ Mandatory Tool Variables by Service
 
-### YouTube Service (`config.youtube_service`)
+Based on architecture guidelines and shared directory:
 
-**Service-Specific Settings:**
+### API Server
+**Uses tools:** Elasticsearch (read-only)
+
+**🔴 Mandatory variables (required by shared tools):**
 ```bash
-YOUTUBE_API_KEY=your_api_key                    # REQUIRED - no default
-YOUTUBE_MAX_RESULTS=10                          # optional
-YOUTUBE_DOWNLOAD_QUALITY=bestaudio             # optional
-YOUTUBE_DOWNLOAD_FORMAT=mp3                    # optional
+# Server settings
+API_HOST=0.0.0.0                               # Server IP address
+API_PORT=8000                                  # Server port
+API_DEBUG=false                                # Debug mode
+API_CORS_ORIGINS=*                             # Allowed CORS origins
+
+# Elasticsearch connection - required by shared/elasticsearch tools
+ELASTICSEARCH_HOST=localhost                    # Elasticsearch server address
+ELASTICSEARCH_PORT=9200                         # Elasticsearch port
+ELASTICSEARCH_SCHEME=http                       # Protocol
+ELASTICSEARCH_USERNAME=                         # Username (if auth required)
+ELASTICSEARCH_PASSWORD=                         # Password (if auth required)
 ```
 
-**Infrastructure Dependencies (explicitly defined for this service):**
+### YouTube Service
+**Uses tools:** Kafka, Elasticsearch, Storage
+
+**🔴 Mandatory variables (required by shared tools):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # optional - has default
-KAFKA_CONSUMER_GROUP_YOUTUBE=youtube-service   # optional - has default
-KAFKA_TOPIC_DOWNLOAD_REQUESTED=song.download.requested  # optional - has default
-KAFKA_TOPIC_SONG_DOWNLOADED=song.downloaded    # optional - has default
+# Kafka connection - required by shared/kafka tools
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # Kafka servers list
+KAFKA_CONSUMER_GROUP_YOUTUBE=youtube-service   # Consumer group
+KAFKA_TOPIC_DOWNLOAD_REQUESTED=song.download.requested  # Request topic
+KAFKA_TOPIC_SONG_DOWNLOADED=song.downloaded    # Completion topic
 
-ELASTICSEARCH_HOST=localhost                    # optional - has default
-ELASTICSEARCH_PORT=9200                         # optional - has default
-ELASTICSEARCH_SCHEME=http                       # optional - has default
-ELASTICSEARCH_USERNAME=                         # optional - no default (auth)
-ELASTICSEARCH_PASSWORD=                         # optional - no default (auth)
-ELASTICSEARCH_SONGS_INDEX=songs                # optional - has default
+# Elasticsearch connection - required by shared/elasticsearch tools
+ELASTICSEARCH_HOST=localhost                    # Elasticsearch server address
+ELASTICSEARCH_PORT=9200                         # Elasticsearch port
+ELASTICSEARCH_SCHEME=http                       # Protocol
+ELASTICSEARCH_USERNAME=                         # Username (if auth required)
+ELASTICSEARCH_PASSWORD=                         # Password (if auth required)
+ELASTICSEARCH_SONGS_INDEX=songs                # Songs index
 
-STORAGE_BASE_PATH=/shared                       # optional - has default
+# File storage - required by shared/storage tools
+STORAGE_BASE_PATH=/shared                       # Base directory for files
 ```
 
-### Audio Service (`config.audio_service`)
-
-**Service-Specific Settings:**
+**🟢 Internal service variables (additions):**
 ```bash
-AUDIO_VOCAL_REMOVAL_METHOD=spleeter            # optional - has default
-AUDIO_OUTPUT_FORMAT=mp3                        # optional - has default
-AUDIO_SAMPLE_RATE=44100                        # optional - has default
-AUDIO_BITRATE=128k                             # optional - has default
+# YouTube service specific additions
+YOUTUBE_API_KEY=your_api_key                    # YouTube API key
+YOUTUBE_MAX_RESULTS=10                          # Search results count
+YOUTUBE_DOWNLOAD_QUALITY=bestaudio             # Download quality
+YOUTUBE_DOWNLOAD_FORMAT=mp3                    # File format
 ```
 
-**Infrastructure Dependencies (explicitly defined for this service):**
+### Audio Processing Service
+**Uses tools:** Kafka, Elasticsearch, Storage
+
+**🔴 Mandatory variables (required by shared tools):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # optional - has default
-KAFKA_CONSUMER_GROUP_AUDIO=audio-service       # optional - has default
-KAFKA_TOPIC_AUDIO_PROCESS_REQUESTED=audio.process.requested  # optional - has default
-KAFKA_TOPIC_VOCALS_PROCESSED=audio.vocals_processed  # optional - has default
+# Kafka connection - required by shared/kafka tools
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # Kafka servers list
+KAFKA_CONSUMER_GROUP_AUDIO=audio-service       # Consumer group
+KAFKA_TOPIC_AUDIO_PROCESS_REQUESTED=audio.process.requested  # Request topic
+KAFKA_TOPIC_VOCALS_PROCESSED=audio.vocals_processed  # Completion topic
 
-ELASTICSEARCH_HOST=localhost                    # optional - has default
-ELASTICSEARCH_PORT=9200                         # optional - has default
-ELASTICSEARCH_SCHEME=http                       # optional - has default
-ELASTICSEARCH_USERNAME=                         # optional - no default (auth)
-ELASTICSEARCH_PASSWORD=                         # optional - no default (auth)
-ELASTICSEARCH_SONGS_INDEX=songs                # optional - has default
+# Elasticsearch connection - required by shared/elasticsearch tools
+ELASTICSEARCH_HOST=localhost                    # Elasticsearch server address
+ELASTICSEARCH_PORT=9200                         # Elasticsearch port
+ELASTICSEARCH_SCHEME=http                       # Protocol
+ELASTICSEARCH_USERNAME=                         # Username (if auth required)
+ELASTICSEARCH_PASSWORD=                         # Password (if auth required)
+ELASTICSEARCH_SONGS_INDEX=songs                # Songs index
 
-STORAGE_BASE_PATH=/shared                       # optional - has default
+# File storage - required by shared/storage tools
+STORAGE_BASE_PATH=/shared                       # Base directory for files
 ```
 
-### API Server (`config.api_server`)
-
-**Service-Specific Settings:**
+**🟢 Internal service variables (additions):**
 ```bash
-API_HOST=0.0.0.0                               # optional - has default
-API_PORT=8000                                  # optional - has default
-API_DEBUG=false                                # optional - has default
-API_CORS_ORIGINS=*                             # optional - has default
+# Audio processing specific additions
+AUDIO_VOCAL_REMOVAL_METHOD=spleeter            # Vocal removal method
+AUDIO_OUTPUT_FORMAT=mp3                        # Output format
+AUDIO_SAMPLE_RATE=44100                        # Sample rate
+AUDIO_BITRATE=128k                             # Bitrate quality
 ```
 
-**Infrastructure Dependencies (explicitly defined for this service):**
+### Transcription Service
+**Uses tools:** Kafka, Elasticsearch, Storage
+
+**🔴 Mandatory variables (required by shared tools):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # optional - has default
+# Kafka connection - required by shared/kafka tools
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # Kafka servers list
+KAFKA_CONSUMER_GROUP_TRANSCRIPTION=transcription-service  # Consumer group
+KAFKA_TOPIC_TRANSCRIPTION_REQUESTED=transcription.process.requested  # Request topic
+KAFKA_TOPIC_TRANSCRIPTION_DONE=transcription.done  # Completion topic
 
-ELASTICSEARCH_HOST=localhost                    # optional - has default
-ELASTICSEARCH_PORT=9200                         # optional - has default
-ELASTICSEARCH_SCHEME=http                       # optional - has default
-ELASTICSEARCH_USERNAME=                         # optional - no default (auth)
-ELASTICSEARCH_PASSWORD=                         # optional - no default (auth)
+# Elasticsearch connection - required by shared/elasticsearch tools
+ELASTICSEARCH_HOST=localhost                    # Elasticsearch server address
+ELASTICSEARCH_PORT=9200                         # Elasticsearch port
+ELASTICSEARCH_SCHEME=http                       # Protocol
+ELASTICSEARCH_USERNAME=                         # Username (if auth required)
+ELASTICSEARCH_PASSWORD=                         # Password (if auth required)
+ELASTICSEARCH_SONGS_INDEX=songs                # Songs index
+
+# File storage - required by shared/storage tools
+STORAGE_BASE_PATH=/shared                       # Base directory for files
 ```
 
-### Transcription Service (`config.transcription_service`)
-
-**Service-Specific Settings:**
+**🟢 Internal service variables (additions):**
 ```bash
-TRANSCRIPTION_MODEL_NAME=whisper-base          # optional - has default
-TRANSCRIPTION_LANGUAGE=auto                    # optional - has default
-TRANSCRIPTION_OUTPUT_FORMAT=lrc                # optional - has default
+# Transcription specific additions
+TRANSCRIPTION_MODEL_NAME=whisper-base          # Recognition model
+TRANSCRIPTION_LANGUAGE=auto                    # Recognition language
+TRANSCRIPTION_OUTPUT_FORMAT=lrc                # Output format
 ```
 
-**Infrastructure Dependencies (explicitly defined for this service):**
+### Streamlit Client
+**Uses tools:** HTTP connection to API Server
+
+**🔴 Mandatory variables (required by shared tools):**
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092         # optional - has default
-KAFKA_CONSUMER_GROUP_TRANSCRIPTION=transcription-service  # optional - has default
-KAFKA_TOPIC_TRANSCRIPTION_REQUESTED=transcription.process.requested  # optional - has default
-KAFKA_TOPIC_TRANSCRIPTION_DONE=transcription.done  # optional - has default
-
-ELASTICSEARCH_HOST=localhost                    # optional - has default
-ELASTICSEARCH_PORT=9200                         # optional - has default
-ELASTICSEARCH_SCHEME=http                       # optional - has default
-ELASTICSEARCH_USERNAME=                         # optional - no default (auth)
-ELASTICSEARCH_PASSWORD=                         # optional - no default (auth)
-ELASTICSEARCH_SONGS_INDEX=songs                # optional - has default
-
-STORAGE_BASE_PATH=/shared                       # optional - has default
+# API Server connection - required by shared/http tools
+STREAMLIT_API_BASE_URL=http://localhost:8000   # API server address
 ```
 
-### Streamlit Client (`config.streamlit_client`)
-
-**Service-Specific Settings:**
+**🟢 Internal service variables (additions):**
 ```bash
-STREAMLIT_TITLE=HebKaraoke                     # optional - has default
-STREAMLIT_THEME=dark                           # optional - has default
-STREAMLIT_API_BASE_URL=http://localhost:8000   # optional - has default
+# Interface specific additions
+STREAMLIT_TITLE=HebKaraoke                     # Application title
+STREAMLIT_THEME=dark                           # Theme setting
 ```
 
-## 🏗️ Global Project Settings
+## 📋 Instructions for Creating Service Configuration File
 
-**Project Metadata:**
+### 🚨 Mandatory for every service!
+
+When deploying each service in separate containers, **must** create separate `config.py` file for each service.
+
+### Step 1: Create the file
 ```bash
-PROJECT_NAME=HebKaraoke                        # optional - has default
-PROJECT_VERSION=1.0.0                         # optional - has default
-ENVIRONMENT=development                        # optional - has default (development/production)
+# Create configuration file in service directory
+touch services/youtube-service/config.py
 ```
 
-## 🔐 Configuration Security
+### Step 2: Mandatory copying of shared variables
+**Copy all relevant variables from `/config.py` exactly as they are:**
 
-### Required vs Optional Variables
-
-**REQUIRED** (will throw error if missing):
-- `YOUTUBE_API_KEY` - Critical for YouTube service functionality
-
-**OPTIONAL** (have safe defaults):
-- All infrastructure settings (hosts, ports, etc.)
-- All service-specific settings
-
-### Smart Defaults Strategy
-
-- **Infrastructure Settings**: Default to localhost development values
-- **Critical API Keys**: No defaults - must be explicitly provided
-- **Service Settings**: Sensible defaults for typical usage
-
-### Environment-Specific Configuration
+For example, for YouTube service:
 
 ```python
-from config import config
+# services/youtube-service/config.py
+import os
 
-# Check environment
-if config.is_production():
-    # Production-specific logic
-    pass
-elif config.is_development():
-    # Development-specific logic
-    pass
+class Config:
+    def __init__(self):
+        # 🔴 Mandatory - exact copy from template
+        # All variables that shared directory requires:
+
+        # Kafka configuration
+        self.kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+        self.kafka_consumer_group = os.getenv("KAFKA_CONSUMER_GROUP_YOUTUBE", "youtube-service")
+        self.kafka_topic_download_requested = os.getenv("KAFKA_TOPIC_DOWNLOAD_REQUESTED", "song.download.requested")
+        self.kafka_topic_song_downloaded = os.getenv("KAFKA_TOPIC_SONG_DOWNLOADED", "song.downloaded")
+
+        # Elasticsearch configuration
+        self.elasticsearch_host = os.getenv("ELASTICSEARCH_HOST", "localhost")
+        self.elasticsearch_port = int(os.getenv("ELASTICSEARCH_PORT", "9200"))
+        self.elasticsearch_scheme = os.getenv("ELASTICSEARCH_SCHEME", "http")
+        self.elasticsearch_username = os.getenv("ELASTICSEARCH_USERNAME")
+        self.elasticsearch_password = os.getenv("ELASTICSEARCH_PASSWORD")
+        self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
+
+        # Storage configuration
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
+
+        # 🟢 Additions - internal service variables
+        self.api_key = os.getenv("YOUTUBE_API_KEY")
+        if not self.api_key:
+            raise ValueError("YOUTUBE_API_KEY environment variable is required")
+
+        self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))
+        self.download_quality = os.getenv("YOUTUBE_DOWNLOAD_QUALITY", "bestaudio")
+        self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "mp3")
+
+# Create configuration instance
+config = Config()
 ```
 
-## 📚 Configuration Examples
+### ✅ Checklist for each service:
 
-### Development Environment (.env)
-```bash
-# Only required variables
-YOUTUBE_API_KEY=your_actual_api_key
+1. **Copy all mandatory variables** from template in `/config.py` - those that shared directory requires
+2. **Cannot skip any variable** that shared directory needs
+3. **Add internal variables** of the service as needed (API keys, specific settings)
+4. **Ensure all variables are documented** with explanation of what they do
+5. **Create `config` instance** at end of file
 
-# All others use defaults for local development
-```
+### 🟢 Adding Internal Variables - Guide
 
-### Production Environment (.env)
-```bash
-# Required
-YOUTUBE_API_KEY=your_production_api_key
+**Variables from template are mandatory base!** On this base, each service can add its internal variables.
 
-# Infrastructure overrides
-KAFKA_BOOTSTRAP_SERVERS=kafka-cluster:9092
-ELASTICSEARCH_HOST=elastic-cluster
-ELASTICSEARCH_USERNAME=production_user
-ELASTICSEARCH_PASSWORD=production_password
-STORAGE_BASE_PATH=/production/shared
+#### Examples of internal variables:
 
-# Environment
-ENVIRONMENT=production
-```
-
-### Docker Compose Environment
-```bash
-# Service-specific ports
-API_PORT=8080
-STREAMLIT_API_BASE_URL=http://api-server:8080
-
-# Cluster addresses
-KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-ELASTICSEARCH_HOST=elasticsearch
-```
-
-## 🎯 Best Practices
-
-1. **Service Isolation**: Each service only accesses `config.{service_name}`
-2. **Explicit Parameters**: Pass configuration explicitly to shared tools
-3. **Environment Files**: Use `.env` files for environment-specific settings
-4. **Security**: Never commit API keys or passwords to version control
-5. **Documentation**: Update this guide when adding new configuration options
-
-## 🚀 Usage in Services
-
+**YouTube Service:**
 ```python
-# services/youtube-service/main.py
-from config import config
-from shared.kafka import KafkaProducerAsync
-from shared.repositories import RepositoryFactory
-
-def main():
-    # Get service configuration
-    service_config = config.youtube_service
-
-    # Create components with explicit configuration
-    producer = KafkaProducerAsync(
-        bootstrap_servers=service_config.kafka_bootstrap_servers
-    )
-
-    song_repo = RepositoryFactory.create_song_repository_from_config(
-        service_config, async_mode=True
-    )
-
-    # Service logic here...
+# Internal variables specific to YouTube
+self.api_key = os.getenv("YOUTUBE_API_KEY")  # API key
+self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))  # Results count
+self.timeout = int(os.getenv("YOUTUBE_TIMEOUT", "30"))  # Timeout
 ```
 
-This approach ensures that each service has complete visibility into all configuration it needs while maintaining clean separation between services.
+**Audio Service:**
+```python
+# Internal variables specific to audio processing
+self.threads = int(os.getenv("AUDIO_THREADS", "4"))  # Thread count
+self.temp_dir = os.getenv("AUDIO_TEMP_DIR", "/tmp")  # Temp directory
+```
+
+#### Principles for adding internal variables:
+
+1. **Always on mandatory base** - first copy variables that shared directory requires
+2. **Service prefix** (YOUTUBE_, AUDIO_, etc.)
+3. **Reasonable default**
+4. **Document what variable does**
+
+### 🎯 Benefits of this approach:
+1. **Shared directory works** - all tools get variables they need
+2. **Complete independence** - each container sees only what it needs
+3. **Flexibility** - each service can add internal variables
+4. **Security** - no exposure to other services' variables
+5. **Easy maintenance** - change in shared directory requires updating template only
