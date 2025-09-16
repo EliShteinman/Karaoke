@@ -12,7 +12,7 @@ os.environ["CT2_VERBOSE"] = "0"
 
 # Now, import our own modules
 from shared.utils.logger import Logger
-from app.consumers.transcriptionConsumer import TranscriptionConsumer
+from services.transcriptionService.app.consumers.transcriptionConsumer import TranscriptionConsumer
 
 # Initialize logger
 logger = Logger.get_logger(__name__)
