@@ -1,10 +1,17 @@
 from fastapi import APIRouter, HTTPException, status
 import httpx
-from services.api_server.app.models import schemas
-from services.api_server.app.clients import youtube_service_client
+from ...models import schemas
+from ...clients import youtube_service_client
 from shared.utils.logger import Logger
 
-logger = Logger.get_logger(__name__)
+# Import config for logger initialization
+from ...config import settings
+
+logger = Logger.get_logger(
+    name="api-server-youtube",
+    es_url=f"{settings.elasticsearch_scheme}://{settings.elasticsearch_host}:{settings.elasticsearch_port}",
+    index="logs"
+)
 
 router = APIRouter()
 
@@ -24,7 +31,12 @@ async def search_youtube(search_request: schemas.SearchRequest) -> schemas.Searc
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="YouTube Service is unavailable.")
     except httpx.HTTPStatusError as e:
         logger.error(f"Router: YouTube Service returned an error status {e.response.status_code}. Response: {e.response.text}")
-        raise HTTPException(status_code=e.response.status_code, detail=e.response.json())
+        try:
+            detail = e.response.json()
+        except Exception as json_error:
+            logger.warning(f"Router: Failed to parse error response as JSON: {json_error}")
+            detail = e.response.text
+        raise HTTPException(status_code=e.response.status_code, detail=detail)
     except Exception as e:
         logger.error(f"Router: An unexpected error occurred during search forwarding. Error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An internal error occurred.")
@@ -45,7 +57,12 @@ async def queue_download(download_request: schemas.DownloadRequest) -> schemas.D
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="YouTube Service is unavailable.")
     except httpx.HTTPStatusError as e:
         logger.error(f"Router: YouTube Service returned an error status {e.response.status_code}. Response: {e.response.text}")
-        raise HTTPException(status_code=e.response.status_code, detail=e.response.json())
+        try:
+            detail = e.response.json()
+        except Exception as json_error:
+            logger.warning(f"Router: Failed to parse error response as JSON: {json_error}")
+            detail = e.response.text
+        raise HTTPException(status_code=e.response.status_code, detail=detail)
     except Exception as e:
         logger.error(f"Router: An unexpected error occurred during download forwarding. Error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An internal error occurred.")
