@@ -80,14 +80,29 @@ class KafkaFailedMessage(BaseModel):
     error: ErrorDetails = Field(..., description="Error details")
 
 
+class SongStatus(BaseModel):
+    """Song processing status structure"""
+    overall: str = Field(..., description="Overall processing status")
+    download: str = Field(..., description="Download status")
+    audio_processing: str = Field(..., description="Audio processing status")
+    transcription: str = Field(..., description="Transcription status")
+
+
 class ElasticsearchSongDocument(BaseModel):
     """Song document structure as expected from Elasticsearch"""
     video_id: str = Field(..., description="YouTube video ID")
     title: str = Field(..., description="Song title")
     artist: str = Field(..., description="Song artist")
+    channel: Optional[str] = Field(None, description="YouTube channel")
+    duration: Optional[int] = Field(None, description="Duration in seconds")
+    thumbnail: Optional[str] = Field(None, description="Thumbnail URL")
     album: Optional[str] = Field(None, description="Album name")
-    file_paths: Dict[str, str] = Field(..., description="File paths dictionary")
-    status: str = Field(..., description="Processing status")
+    file_paths: Dict[str, str] = Field(default_factory=dict, description="File paths dictionary")
+    status: SongStatus = Field(..., description="Processing status object")
+    metadata: Dict = Field(default_factory=dict, description="Processing metadata")
+    search_text: Optional[str] = Field(None, description="Searchable text")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
 
 class ElasticsearchUpdateRequest(BaseModel):
