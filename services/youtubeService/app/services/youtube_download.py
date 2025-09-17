@@ -182,6 +182,10 @@ class YouTubeDownloadService:
 
     def _download_file(self, video_id: str) -> str:
         """Download file using YTDLP with exact schema specifications"""
+        # Update status to indicate download started
+        self.song_repository.update_status_field(video_id, "download", "in_progress")
+        self.logger.info(f"Updated download status to 'in_progress' for video_id='{video_id}'")
+
         url = f"https://www.youtube.com/watch?v={video_id}"
         output_dir = self.base_path / video_id
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -233,8 +237,10 @@ class YouTubeDownloadService:
             # Update file path
             self.song_repository.update_file_path(video_id, "original", file_path)
 
-            # Update status to processing
-            self.song_repository.update_song_status(video_id, "processing")
+            # Update status - download completed, overall status to processing
+            self.song_repository.update_status_field(video_id, "download", "completed")
+            self.song_repository.update_status_field(video_id, "overall", "processing")
+            self.logger.info(f"Updated status: download='completed', overall='processing' for video_id='{video_id}'")
 
             # Get file metadata
             file_size = os.path.getsize(file_path)
@@ -311,12 +317,13 @@ class YouTubeDownloadService:
         try:
             self.logger.info(f"Handling download error for video_id='{video_id}'")
 
-            # Update Elasticsearch with error
+            # Update Elasticsearch with error - specify download step failed
             self.song_repository.mark_song_failed(
                 video_id=video_id,
                 error_code="DOWNLOAD_FAILED",
                 error_message=error_message,
-                service="youtube_service"
+                service="youtube_service",
+                failed_step="download"
             )
 
             # Send error message to Kafka

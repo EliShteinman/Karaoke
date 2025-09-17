@@ -25,8 +25,48 @@ def _is_song_ready(song_doc: Dict[str, Any]) -> bool:
         str(vocals_removed).strip() and str(lyrics).strip()
     )
 
+def _calculate_is_ready(song_doc: Dict[str, Any]) -> bool:
+    """Calculate if song is ready based on the new detailed status structure."""
+    status = song_doc.get("status", {})
+
+    # Handle both new detailed status structure and legacy status field
+    if isinstance(status, dict):
+        # New detailed status structure
+        return (
+            status.get("download") == "completed" and
+            status.get("audio_processing") == "completed" and
+            status.get("transcription") == "completed" and
+            status.get("overall") == "completed"
+        )
+    else:
+        # Legacy status - fall back to file-based check
+        return _is_song_ready(song_doc)
+
+def _extract_status_details(song_doc: Dict[str, Any]) -> schemas.StatusDetails:
+    """Extract detailed status information from song document."""
+    status = song_doc.get("status", {})
+
+    # Handle both new detailed status structure and legacy status field
+    if isinstance(status, dict):
+        # New detailed status structure
+        return schemas.StatusDetails(
+            overall=status.get("overall", "unknown"),
+            download=status.get("download", "unknown"),
+            audio_processing=status.get("audio_processing", "unknown"),
+            transcription=status.get("transcription", "unknown")
+        )
+    else:
+        # Legacy status - convert to detailed structure based on files
+        progress = _calculate_progress(song_doc)
+        return schemas.StatusDetails(
+            overall=str(status) if status else "unknown",
+            download="completed" if progress.download else "pending",
+            audio_processing="completed" if progress.audio_processing else "pending",
+            transcription="completed" if progress.transcription else "pending"
+        )
+
 def _calculate_progress(song_doc: Dict[str, Any]) -> schemas.Progress:
-    """Calculate processing progress for a song based on file paths."""
+    """Calculate processing progress for a song based on file paths (legacy for backward compatibility)."""
     file_paths = song_doc.get("file_paths", {})
 
     # Check for files in both the nested object and as separate fields (for backward compatibility)
@@ -107,11 +147,16 @@ async def get_song_status(video_id: str) -> Optional[schemas.StatusResponse]:
             return None
 
         logger.info(f"Service: Found document for video_id: {video_id}.")
-        progress = _calculate_progress(song_doc)
+
+        # Extract detailed status and calculate readiness
+        status_details = _extract_status_details(song_doc)
+        is_ready = _calculate_is_ready(song_doc)
+        progress = _calculate_progress(song_doc)  # Keep for backward compatibility
 
         return schemas.StatusResponse(
             video_id=song_doc["video_id"],
-            status=song_doc["status"],
+            status=status_details,
+            is_ready=is_ready,
             progress=progress
         )
     except KeyError as e:

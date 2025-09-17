@@ -190,12 +190,19 @@ User → Streamlit Client → API Server → Elasticsearch (בדיקת מוכנ�
 - API Server פועל כ-Gateway בלבד ואינו יוצר או מעדכן מטאדאטה
 - שירותי עיבוד מעדכנים רק את השדות הספציפיים שלהם ב-Elasticsearch
 
-### עקרון "שיר מוכן"
-- שיר נחשב מוכן כאשר קיימים ב-Elasticsearch שני נתיבי הקבצים:
-  - `file_paths.vocals_removed` (אודיו ללא ווקאל)
-  - `file_paths.lyrics` (קובץ כתוביות LRC)
-- הבדיקה מתבצעת על ידי API Server באמצעות שאילתה ל-Elasticsearch
-- לא מתבססים על שדה status אלא על קיום הקבצים בפועל
+### עקרון "שיר מוכן" - מנגנון סטטוסים מפורט
+- כל שיר במערכת מכיל אובייקט סטטוס מפורט:
+  ```json
+  "status": {
+      "overall": "processing", // downloading, processing, completed, failed
+      "download": "completed",   // pending, in_progress, completed, failed
+      "audio_processing": "in_progress", // pending, in_progress, completed, failed
+      "transcription": "pending" // pending, in_progress, completed, failed
+  }
+  ```
+- שיר נחשב מוכן כאשר כל שלבי העיבוד הושלמו (`status.overall = "completed"`)
+- API Server מחשב שדה `is_ready` דינמית על בסיס השלמת כל השלבים
+- השדה `is_ready` אינו נשמר ב-Elasticsearch אלא מחושב מחדש בכל קריאה
 
 ### הפרדת אחריות (Separation of Concerns)
 - כל שירות מטפל בתחום פונקציונלי יחיד

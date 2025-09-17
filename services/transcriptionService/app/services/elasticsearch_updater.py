@@ -52,6 +52,33 @@ class ElasticsearchUpdater:
             self.logger.error(f"ElasticsearchUpdater initialization error details: {str(e)}")
             raise
 
+    def update_status_field(self, video_id: str, field: str, value: str) -> bool:
+        """
+        Update a specific status field using the shared repository
+
+        Args:
+            video_id: YouTube video ID
+            field: Status field ('transcription', 'audio_processing', 'download', 'overall')
+            value: Status value ('pending', 'in_progress', 'completed', 'failed')
+
+        Returns:
+            True if update was successful, False otherwise
+        """
+        try:
+            self.logger.debug(f"[{video_id}] - Updating status field '{field}' to '{value}'")
+            result = self.song_repository.update_status_field(video_id, field, value)
+
+            if result:
+                self.logger.debug(f"[{video_id}] - Successfully updated status field '{field}' to '{value}'")
+                return True
+            else:
+                self.logger.error(f"[{video_id}] - Failed to update status field '{field}' to '{value}'")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"[{video_id}] - Exception updating status field '{field}': {e}")
+            return False
+
     def get_song_document(self, video_id: str) -> Optional[ElasticsearchSongDocument]:
         """
         Get song document from Elasticsearch using shared repository
@@ -145,14 +172,21 @@ class ElasticsearchUpdater:
             # Extract searchable text from lyrics file
             searchable_text = self._extract_searchable_text(lyrics_path, video_id)
 
-            # Update searchable text and status - using the elasticsearch service directly for complex updates
-            complex_update = {
-                "status": "transcription_done",
+            # Update searchable text first
+            search_text_update = {
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "search_text": searchable_text
             }
+            text_update_result = self.song_repository.es.update_document(video_id, search_text_update)
 
-            final_update_result = self.song_repository.es.update_document(video_id, complex_update)
+            if not text_update_result:
+                self.logger.error(f"[{video_id}] - Failed to update search text")
+                return False
+
+            # Use intelligent status completion check - this will automatically set overall to 'completed' if all steps are done
+            final_update_result = self.song_repository.update_status_and_check_completion(
+                video_id, "transcription", "completed"
+            )
 
             if not final_update_result:
                 self.logger.error(f"[{video_id}] - Failed to update status and search text")
@@ -180,12 +214,13 @@ class ElasticsearchUpdater:
         try:
             self.logger.debug(f"[{video_id}] - Updating document with error details")
 
-            # Use shared repository to mark song as failed
+            # Use shared repository to mark song as failed - specify transcription step failed
             result = self.song_repository.mark_song_failed(
                 video_id=video_id,
                 error_code=error_details.code,
                 error_message=error_details.message,
-                service=error_details.service
+                service=error_details.service,
+                failed_step="transcription"
             )
 
             if result:

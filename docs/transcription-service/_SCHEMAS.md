@@ -109,6 +109,8 @@ Transcription Service אחראי על תמלול השירים ויצירת קב�
 ```json
 {
   "doc": {
+    "status.transcription": "completed",
+    "status.overall": "completed",
     "file_paths.lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
     "updated_at": "2025-09-15T10:34:12Z",
     "processing_metadata.transcription": {
@@ -306,7 +308,8 @@ timing_adjustment = {
 ```json
 {
   "doc": {
-    "status": "failed",
+    "status.transcription": "failed",
+    "status.overall": "failed",
     "error": {
       "code": "TRANSCRIPTION_FAILED",
       "message": "Failed to transcribe audio",

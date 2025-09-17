@@ -40,8 +40,15 @@ class DownloadResponse(BaseModel):
     video_id: str = Field(..., description="YouTube video ID")
 
 
+class StatusDetails(BaseModel):
+    """Schema for detailed status from API Server"""
+    overall: str = Field(..., description="Overall processing status")
+    download: str = Field(..., description="Download status")
+    audio_processing: str = Field(..., description="Audio processing status")
+    transcription: str = Field(..., description="Transcription status")
+
 class Progress(BaseModel):
-    """Schema for processing progress from API Server"""
+    """Schema for processing progress from API Server (legacy for backward compatibility)"""
     download: bool = Field(default=False, description="Download stage completed")
     audio_processing: bool = Field(default=False, description="Audio processing stage completed")
     transcription: bool = Field(default=False, description="Transcription stage completed")
@@ -51,8 +58,9 @@ class Progress(BaseModel):
 class SongStatus(BaseModel):
     """Schema for song processing status response"""
     video_id: str = Field(..., description="YouTube video ID")
-    status: str = Field(..., description="Overall processing status")
-    progress: Progress = Field(..., description="Processing progress details")
+    status: StatusDetails = Field(..., description="Detailed processing status")
+    is_ready: bool = Field(..., description="Whether the song is ready for karaoke")
+    progress: Progress = Field(..., description="Processing progress details (legacy)")
 
 
 class SongListItem(BaseModel):

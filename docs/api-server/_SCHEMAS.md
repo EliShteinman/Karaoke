@@ -206,28 +206,28 @@ class SongsResponse(BaseModel):
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
-  "status": "processing",
-  "progress": {
-    "download": true,
-    "audio_processing": true,
-    "transcription": true,
-    "files_ready": true
-  }
+  "status": {
+    "overall": "processing",
+    "download": "completed",
+    "audio_processing": "completed",
+    "transcription": "in_progress"
+  },
+  "is_ready": false
 }
 ```
 
 **סכמת Pydantic:**
 ```python
-class Progress(BaseModel):
-    download: bool
-    audio_processing: bool
-    transcription: bool
-    files_ready: bool
+class StatusDetails(BaseModel):
+    overall: str
+    download: str
+    audio_processing: str
+    transcription: str
 
 class StatusResponse(BaseModel):
     video_id: str
-    status: str
-    progress: Progress
+    status: StatusDetails
+    is_ready: bool
 ```
 
 #### `GET /songs/{video_id}/download` - Response
@@ -311,27 +311,22 @@ class StatusResponse(BaseModel):
 
 ## לוגיקת חישוב סטטוס פנימית
 
-### קביעת התקדמות
+### חישוב סטטוס מוכן
 ```python
-def calculate_progress(elasticsearch_doc) -> Progress:
-    file_paths = elasticsearch_doc.get("file_paths", {})
-
-    return Progress(
-        download=bool(file_paths.get("original")),
-        audio_processing=bool(file_paths.get("vocals_removed")),
-        transcription=bool(file_paths.get("lyrics")),
-        files_ready=bool(
-            file_paths.get("vocals_removed") and
-            file_paths.get("lyrics") and
-            file_paths.get("vocals_removed") != "" and
-            file_paths.get("lyrics") != ""
-        )
+def calculate_is_ready(elasticsearch_doc) -> bool:
+    status = elasticsearch_doc.get("status", {})
+    return (
+        status.get("download") == "completed" and
+        status.get("audio_processing") == "completed" and
+        status.get("transcription") == "completed" and
+        status.get("overall") == "completed"
     )
 ```
 
-### קביעת שיר מוכן
+### קביעת שיר מוכן (לתאימות לאחור)
 ```python
-def is_song_ready(elasticsearch_doc) -> bool:
+def is_song_ready_legacy(elasticsearch_doc) -> bool:
+    # לשמירת תאימות לאחור - בדיקת קיום קבצים
     file_paths = elasticsearch_doc.get("file_paths", {})
     return (
         file_paths.get("vocals_removed") and
