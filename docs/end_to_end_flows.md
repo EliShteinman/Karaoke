@@ -58,14 +58,20 @@
 - `file_paths: {}` (ריק)
 - timestamps
 
-### שלב 5: הורדת קובץ האודיו
+### שלב 5: התחלת הורדת קובץ האודיו
+**YouTube Service**: מעדכן סטטוס ל-**"downloading"** ב-**Elasticsearch**:
+```json
+{"status": "downloading"}
+```
+
+### שלב 6: הורדת קובץ האודיו
 **YouTube Service**: מוריד את קובץ האודיו המקורי באמצעות **YTDLP** ושומר אותו ב-**Shared Storage** בנתיב `/shared/audio/{video_id}/original.mp3`.
 
-### שלב 6: עדכון מסמך עם נתיב הקובץ המקורי
+### שלב 7: עדכון סיום הורדה והתחלת עיבוד
 **YouTube Service**: מעדכן את המסמך ב-**Elasticsearch** באמצעות `POST /songs/_update/{video_id}` עם:
-- `file_paths.original: "/shared/audio/{video_id}/original.mp3"`
+- `file_paths: {"original": "/shared/audio/{video_id}/original.mp3"}`
 - `status: "processing"`
-- מטאדאטה נוספת (גודל קובץ, זמן הורדה, איכות)
+- `metadata: {"download_time": ..., "original_size": ..., "source_quality": "..."}`
 
 ### שלב 7: שליחת פקודות עיבוד ל-Kafka
 **YouTube Service**: מפרסם **3 הודעות נפרדות** ל-**Kafka** (כל הודעה מכילה **רק video_id**):
@@ -87,19 +93,41 @@
 #### תהליך A: עיבוד אודיו
 **Audio Processing Service**: מאזין ל-**Kafka** topic `audio.process.requested`.
 **Audio Processing Service**: מקבל הודעה עם `video_id` בלבד.
+**Audio Processing Service**: **מעדכן סטטוס התחלת עיבוד אודיו** ב-**Elasticsearch**:
+```json
+{"status": "audio_processing"}
+```
 **Audio Processing Service**: שולף את נתיב הקובץ המקורי מ-**Elasticsearch** באמצעות `GET /songs/_doc/{video_id}`.
 **Audio Processing Service**: קורא את הקובץ המקורי מ-**Shared Storage** לפי הנתיב שנשלף.
 **Audio Processing Service**: מבצע הסרת ווקאל (Center Channel Extraction) ושומר את התוצר ב-**Shared Storage** כ-`vocals_removed.mp3`.
-**Audio Processing Service**: מעדכן את המסמך ב-**Elasticsearch** עם `file_paths.vocals_removed` ומטאדאטה של העיבוד.
+**Audio Processing Service**: **מעדכן סיום עיבוד אודיו** ב-**Elasticsearch** עם:
+```json
+{
+  "file_paths": {"vocals_removed": "/shared/audio/{video_id}/vocals_removed.mp3"},
+  "metadata": {"audio_processing_time": ..., "audio_quality": "..."},
+  "status": "processing"
+}
+```
 **Audio Processing Service**: מפרסם אירוע סיום ל-**Kafka** topic `audio.vocals_processed` (ללא נתיבי קבצים).
 
 #### תהליך B: תמלול
 **Transcription Service**: מאזין ל-**Kafka** topic `transcription.process.requested`.
 **Transcription Service**: מקבל הודעה עם `video_id` בלבד.
+**Transcription Service**: **מעדכן סטטוס התחלת תמלול** ב-**Elasticsearch**:
+```json
+{"status": "transcribing"}
+```
 **Transcription Service**: שולף את נתיב הקובץ המקורי מ-**Elasticsearch** באמצעות `GET /songs/_doc/{video_id}`.
 **Transcription Service**: קורא את הקובץ המקורי מ-**Shared Storage** לפי הנתיב שנשלף.
 **Transcription Service**: מבצע תמלול באמצעות **Whisper** ויוצר קובץ **LRC** ב-**Shared Storage** כ-`lyrics.lrc`.
-**Transcription Service**: מעדכן את המסמך ב-**Elasticsearch** עם `file_paths.lyrics` ומטאדאטה של התמלול.
+**Transcription Service**: **מעדכן סיום תמלול ובדיקת השלמה** ב-**Elasticsearch** עם:
+```json
+{
+  "file_paths": {"lyrics": "/shared/audio/{video_id}/lyrics.lrc"},
+  "metadata": {"transcription_time": ..., "language": "he", "confidence": "..."},
+  "status": "completed"  // אם גם vocals_removed מוכן, אחרת "processing"
+}
+```
 **Transcription Service**: מפרסם אירוע סיום ל-**Kafka** topic `transcription.done` (ללא נתיבי קבצים).
 
 ---
@@ -201,13 +229,40 @@ User → Streamlit → API Server → Elasticsearch (status check)
                              → ZIP creation → Streamlit ← User
 ```
 
+### סטטוסי המערכת ועדכוני סטטוס
+
+#### סטטוסים אפשריים:
+- **`"downloading"`**: YouTube Service מוריד קובץ מיוטיוב
+- **`"processing"`**: הורדה הושלמה, עיבוד אודיו ותמלול בביצוע
+- **`"audio_processing"`**: Audio Processing Service מעבד הסרת ווקאל
+- **`"transcribing"`**: Transcription Service מבצע תמלול
+- **`"completed"`**: כל התהליכים הושלמו, קבצי קריוקי מוכנים
+- **`"failed"`**: תהליך נכשל
+
+#### אחריות עדכון סטטוס:
+1. **YouTube Service**:
+   - יוצר מסמך עם `"downloading"`
+   - מעדכן ל-`"processing"` לאחר סיום הורדה
+
+2. **Audio Processing Service**:
+   - מעדכן ל-`"audio_processing"` בתחילת עיבוד
+   - מעדכן חזרה ל-`"processing"` בסיום עיבוד
+
+3. **Transcription Service**:
+   - מעדכן ל-`"transcribing"` בתחילת תמלול
+   - מעדכן ל-`"completed"` אם שני הקבצים מוכנים, אחרת ל-`"processing"`
+
+4. **כל השירותים**:
+   - מעדכנים ל-`"failed"` במקרה של שגיאה
+
 ### עקרונות חשובים
 
 1. **Single Source of Truth**: Elasticsearch מכיל את כל המטאדאטה ונתיבי הקבצים
-2. **Minimal Kafka Content**: הודעות Kafka מכילות רק `video_id` ומידע בסיסי
-3. **Gateway Pattern**: API Server פועל כ-Gateway בלבד ואינו יוצר או מעדכן נתונים
-4. **Orchestration Responsibility**: YouTube Service בלבד מתזמן ויוצר תהליכים
-5. **File Path Resolution**: Processing Services תמיד שולפים נתיבי קבצים מ-Elasticsearch
-6. **Ready Song Definition**: שיר מוכן = קיום `vocals_removed` ו-`lyrics` ב-Elasticsearch
+2. **Status Responsibility**: כל שירות מעדכן את הסטטוס שלו בתחילה ובסיום תהליך
+3. **Minimal Kafka Content**: הודעות Kafka מכילות רק `video_id` ומידע בסיסי
+4. **Gateway Pattern**: API Server פועל כ-Gateway בלבד ואינו יוצר או מעדכן נתונים
+5. **Orchestration Responsibility**: YouTube Service בלבד מתזמן ויוצר תהליכים
+6. **File Path Resolution**: Processing Services תמיד שולפים נתיבי קבצים מ-Elasticsearch
+7. **Ready Song Definition**: שיר מוכן = קיום `vocals_removed` ו-`lyrics` ב-Elasticsearch
 
 תזרימים אלו מבטיחים עקביות, אמינות ותחזוקתביות של המערכת תוך הבטחת הפרדת אחריות ברורה בין השירותים.

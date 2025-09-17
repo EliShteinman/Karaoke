@@ -97,13 +97,25 @@ search_result_display = {
 3. 📝 תמלול וכתוביות
 4. ✅ מוכן לנגינה
 
-**תצוגת סטטוס:**
+**תצוגת סטטוס מפורט:**
 ```python
 progress_display = {
     "overall_status": "בעיבוד...",
-    "download": "✅ הושלם",
-    "audio_processing": "🔄 בתהליך",
-    "transcription": "⏳ ממתין",
+    "status_details": {
+        "download": {
+            "state": "completed",
+            "display": "✅ הורדה הושלמה"
+        },
+        "audio_processing": {
+            "state": "in_progress",
+            "display": "🔄 מעבד אודיו..."
+        },
+        "transcription": {
+            "state": "pending",
+            "display": "⏳ ממתין לתמלול"
+        }
+    },
+    "is_ready": False,
     "estimated_time": "עוד ~2 דקות"
 }
 ```

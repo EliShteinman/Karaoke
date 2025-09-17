@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
-from shared.storage import create_file_manager
+from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
 
 # Import config and models
@@ -94,9 +94,22 @@ class TranscriptionConsumer:
                 raise Exception("'file_paths.original' not found in song document")
             self.logger.debug(f"[{video_id}] - Original audio path: {original_path}")
 
+            # Step 3: Update status to indicate transcription started
+            self.es_updater.update_status_field(video_id, "transcription", "in_progress")
+            self.logger.debug(f"[{video_id}] - Updated transcription status to 'in_progress'")
+
+            # Step 4: Transcribe audio file
             transcription_output = self._transcribe_audio(original_path, video_id)
+
+            # Step 5: Create LRC file
             lyrics_path = self._create_lrc_file(video_id, transcription_output, song_doc)
+            self.logger.debug(f"[{video_id}] - LRC file created at: {lyrics_path}")
+
+            # Step 6: Update Elasticsearch with success
             self._update_elasticsearch_success(video_id, lyrics_path, transcription_output.processing_metadata)
+            self.logger.debug(f"[{video_id}] - Elasticsearch document updated with transcription metadata")
+
+            # Step 7: Send success message to Kafka
             self._send_success_message(video_id, transcription_output)
             
             self.logger.info(f"[{video_id}] - Successfully processed transcription request.")

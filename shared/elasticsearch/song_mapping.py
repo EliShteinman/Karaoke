@@ -35,7 +35,20 @@ SONGS_INDEX_MAPPING = {
             "index": False
         },
         "status": {
-            "type": "keyword"
+            "properties": {
+                "overall": {
+                    "type": "keyword"
+                },
+                "download": {
+                    "type": "keyword"
+                },
+                "audio_processing": {
+                    "type": "keyword"
+                },
+                "transcription": {
+                    "type": "keyword"
+                }
+            }
         },
         "created_at": {
             "type": "date",

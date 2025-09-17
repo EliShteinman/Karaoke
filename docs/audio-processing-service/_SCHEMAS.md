@@ -86,6 +86,7 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
 ```json
 {
   "doc": {
+    "status.audio_processing": "completed",
     "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
     "updated_at": "2025-09-15T10:33:45Z",
     "processing_metadata.audio": {
@@ -241,7 +242,8 @@ quality_metrics = {
 ```json
 {
   "doc": {
-    "status": "failed",
+    "status.audio_processing": "failed",
+    "status.overall": "failed",
     "error": {
       "code": "AUDIO_PROCESSING_FAILED",
       "message": "Failed to process audio file",

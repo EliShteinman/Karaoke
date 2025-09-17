@@ -147,7 +147,12 @@ YouTube Service מטפל בכל הלוגיקה הקשורה ל-YouTube: חיפו
   "channel": "RickAstleyVEVO",
   "duration": 213,
   "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-  "status": "downloading",
+  "status": {
+    "overall": "downloading",
+    "download": "pending",
+    "audio_processing": "pending",
+    "transcription": "pending"
+  },
   "file_paths": {},
   "created_at": "2025-09-15T10:30:00Z",
   "updated_at": "2025-09-15T10:30:00Z"
@@ -162,7 +167,8 @@ YouTube Service מטפל בכל הלוגיקה הקשורה ל-YouTube: חיפו
 {
   "doc": {
     "file_paths.original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-    "status": "processing",
+    "status.download": "completed",
+    "status.overall": "processing",
     "updated_at": "2025-09-15T10:32:15Z",
     "metadata": {
       "original_size": 3456789,
@@ -247,7 +253,8 @@ ytdl_opts = {
 ```json
 {
   "doc": {
-    "status": "failed",
+    "status.download": "failed",
+    "status.overall": "failed",
     "error": {
       "code": "DOWNLOAD_FAILED",
       "message": "Video not available in your region",
