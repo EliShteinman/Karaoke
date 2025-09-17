@@ -22,10 +22,7 @@ from datetime import datetime, timezone
 from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
 from shared.repositories.factory import RepositoryFactory
 from shared.utils.logger import Logger
-from services.audioProcessingService.Passwords import (
-    ES_HOST, ES_PORT, ES_SCHEME, ES_INDEX,
-    TOPICS, GROUP_ID, BOOTSTRAP_SERVERS
-)
+from services.audioProcessingService.config import AudioProcessingServiceConfig
 from services.audioProcessingService.Audio_separation import separate_vocals
 
 # Initialize logging
@@ -43,28 +40,40 @@ class AudioProcessingService:
     """
 
     def __init__(self):
-        # Initialize Kafka consumer
+        self.config = AudioProcessingServiceConfig()
+
+        # Validate configuration
+        try:
+            self.config.validate_config()
+            logger.info("Configuration validated successfully")
+        except ValueError as e:
+            logger.error(f"Configuration validation failed: {e}")
+            raise
+
+        # Initialize Kafka consumer with correct settings for continuous listening
         self.kafka_consumer = KafkaConsumerSync(
-            topics=TOPICS,
-            bootstrap_servers=BOOTSTRAP_SERVERS,
-            group_id=GROUP_ID
+            topics=[self.config.kafka_topic_audio_requested],
+            bootstrap_servers=self.config.kafka_bootstrap_servers,
+            group_id=self.config.kafka_consumer_group,
+            auto_offset_reset='earliest',
+            consumer_timeout_ms=-1  # Disable timeout for continuous listening
         )
 
         # Initialize Kafka producer for completion/error messages
         self.kafka_producer = KafkaProducerSync(
-            bootstrap_servers=BOOTSTRAP_SERVERS
+            bootstrap_servers=self.config.kafka_bootstrap_servers
         )
 
         # Initialize song repository using shared library
         self.song_repo = RepositoryFactory.create_song_repository_from_params(
-            elasticsearch_host=ES_HOST,
-            elasticsearch_port=ES_PORT,
-            elasticsearch_scheme=ES_SCHEME,
-            songs_index=ES_INDEX,
+            elasticsearch_host=self.config.elasticsearch_host,
+            elasticsearch_port=self.config.elasticsearch_port,
+            elasticsearch_scheme=self.config.elasticsearch_scheme,
+            songs_index=self.config.elasticsearch_songs_index,
             async_mode=False
         )
 
-        logger.info("Audio Processing Service initialized")
+        logger.info("Audio Processing Service initialized successfully")
 
     def start(self) -> None:
         """Start the service as a continuous daemon"""
@@ -74,17 +83,24 @@ class AudioProcessingService:
             # Start Kafka components
             self.kafka_consumer.start()
             self.kafka_producer.start()
+            logger.info("Kafka components started successfully")
 
-            # Start continuous listening
-            self.kafka_consumer.listen_forever(
+            # Start continuous listening - this will run forever
+            logger.info("Starting continuous message listening...")
+            processed_count = self.kafka_consumer.listen_forever(
                 message_handler=self._process_message,
                 max_messages=None  # Run forever
             )
 
+            logger.info(f"Service stopped after processing {processed_count} messages")
+
         except KeyboardInterrupt:
-            logger.info("Service interrupted by user")
+            logger.info("Service interrupted by user (Ctrl+C)")
         except Exception as e:
             logger.error(f"Critical error in service: {e}")
+            # Log full traceback for debugging
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
         finally:
             self._shutdown()
 
@@ -232,7 +248,7 @@ class AudioProcessingService:
                 }
             }
 
-            self.kafka_producer.send_message("audio.processing.failed", error_message_data)
+            self.kafka_producer.send_message(self.config.kafka_topic_audio_failed, error_message_data)
             logger.error(f"Reported error for {video_id}: {error_code} - {error_message}")
 
         except Exception as e:
@@ -249,7 +265,7 @@ class AudioProcessingService:
                 "algorithm_used": "center_channel_extraction"
             }
 
-            self.kafka_producer.send_message("audio.vocals_processed", completion_message)
+            self.kafka_producer.send_message(self.config.kafka_topic_audio_processed, completion_message)
             logger.info(f"Sent completion event for {video_id}")
 
         except Exception as e:
