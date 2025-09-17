@@ -84,7 +84,7 @@ class RepositoryConnectionInfo:
 class FileManagerConfig:
     """Configuration for file manager initialization with complete type annotations."""
     storage_type: str = "volume"
-    base_path: str = "/shared"
+    base_path: str = "shared"
 
 
 @dataclass

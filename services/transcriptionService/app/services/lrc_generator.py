@@ -90,7 +90,9 @@ def create_lrc_file(
 
         # Extract video_id from output path for file manager
         # Expected path format: /shared/audio/{video_id}/lyrics.lrc
-        path_parts = output_path.split('/')
+        from pathlib import Path
+        path_obj = Path(output_path)
+        path_parts = path_obj.parts
         video_id = None
         for i, part in enumerate(path_parts):
             if part == "audio" and i + 1 < len(path_parts):
