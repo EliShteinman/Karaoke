@@ -53,7 +53,7 @@ class AudioProcessingServiceConfig:
 
     # --- Audio Format Settings ---
     # Output audio format
-    output_format = os.getenv("OUTPUT_FORMAT", "mp3")
+    output_format = os.getenv("OUTPUT_FORMAT", "wav")
 
     # Output audio bitrate
     output_bitrate = os.getenv("OUTPUT_BITRATE", "128k")

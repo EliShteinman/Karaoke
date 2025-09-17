@@ -21,8 +21,8 @@
 3. **התחלת הורדה:** עדכון `status.download: "in_progress"`
 4. **הורדת הקובץ** באמצעות YTDLP:
    - יצירת תיקייה: `/shared/audio/{video_id}/`
-   - הורדה בפורמט MP3 באיכות 128kbps
-   - שמירה כ-`original.mp3`
+   - הורדה בפורמט WAV באיכות 44.1kHz
+   - שמירה כ-`original.wav`
 5. **עדכון Elasticsearch** עם נתיב הקובץ המקורי:
    - `status.download: "completed"`
    - `status.overall: "processing"`
@@ -55,7 +55,7 @@
 - **לא קורא:** מידע (רק כותב/מעדכן/יוצר)
 
 ### עם Shared Storage
-- **כותב:** קבצי אודיו מקוריים לנתיב `/shared/audio/{video_id}/original.mp3`
+- **כותב:** קבצי אודיו מקוריים לנתיב `/shared/audio/{video_id}/original.wav`
 - **לא קורא:** קבצים (רק כותב)
 
 ## רשימת משימות פיתוח
@@ -142,7 +142,7 @@ SHARED_STORAGE_PATH=/shared/audio
 
 # YTDLP
 YTDLP_OUTPUT_TEMPLATE=/shared/audio/%(id)s/original.%(ext)s
-YTDLP_AUDIO_FORMAT=mp3
+YTDLP_AUDIO_FORMAT=wav
 YTDLP_AUDIO_QUALITY=128K
 
 # Service
@@ -153,14 +153,14 @@ SERVICE_HOST=0.0.0.0
 ### הגדרות YTDLP מתקדמות
 ```python
 ytdl_opts = {
-    'format': 'bestaudio[ext=mp3]/best[ext=mp4]/best',
+    'format': 'bestaudio/best',
     'outtmpl': '/shared/audio/%(id)s/original.%(ext)s',
     'extractaudio': True,
-    'audioformat': 'mp3',
+    'audioformat': 'wav',
     'audioquality': '128K',
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
+        'preferredcodec': 'wav',
         'preferredquality': '128',
     }],
     'no_warnings': False,

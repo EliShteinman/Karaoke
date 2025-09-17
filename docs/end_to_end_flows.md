@@ -65,11 +65,11 @@
 ```
 
 ### שלב 6: הורדת קובץ האודיו
-**YouTube Service**: מוריד את קובץ האודיו המקורי באמצעות **YTDLP** ושומר אותו ב-**Shared Storage** בנתיב `/shared/audio/{video_id}/original.mp3`.
+**YouTube Service**: מוריד את קובץ האודיו המקורי באמצעות **YTDLP** ושומר אותו ב-**Shared Storage** בנתיב `/shared/audio/{video_id}/original.wav`.
 
 ### שלב 7: עדכון סיום הורדה והתחלת עיבוד
 **YouTube Service**: מעדכן את המסמך ב-**Elasticsearch** באמצעות `POST /songs/_update/{video_id}` עם:
-- `file_paths: {"original": "/shared/audio/{video_id}/original.mp3"}`
+- `file_paths: {"original": "/shared/audio/{video_id}/original.wav"}`
 - `status: "processing"`
 - `metadata: {"download_time": ..., "original_size": ..., "source_quality": "..."}`
 
@@ -99,11 +99,11 @@
 ```
 **Audio Processing Service**: שולף את נתיב הקובץ המקורי מ-**Elasticsearch** באמצעות `GET /songs/_doc/{video_id}`.
 **Audio Processing Service**: קורא את הקובץ המקורי מ-**Shared Storage** לפי הנתיב שנשלף.
-**Audio Processing Service**: מבצע הסרת ווקאל (Center Channel Extraction) ושומר את התוצר ב-**Shared Storage** כ-`vocals_removed.mp3`.
+**Audio Processing Service**: מבצע הסרת ווקאל (Center Channel Extraction) ושומר את התוצר ב-**Shared Storage** כ-`vocals_removed.wav`.
 **Audio Processing Service**: **מעדכן סיום עיבוד אודיו** ב-**Elasticsearch** עם:
 ```json
 {
-  "file_paths": {"vocals_removed": "/shared/audio/{video_id}/vocals_removed.mp3"},
+  "file_paths": {"vocals_removed": "/shared/audio/{video_id}/vocals_removed.wav"},
   "metadata": {"audio_processing_time": ..., "audio_quality": "..."},
   "status": "processing"
 }
@@ -183,7 +183,7 @@
 
 ### שלב 11: קריאת קבצים מהאחסון
 **API Server**: קורא את שני הקבצים מ-**Shared Storage** לפי הנתיבים שנשלפו:
-- קריאת הקובץ `vocals_removed.mp3`
+- קריאת הקובץ `vocals_removed.wav`
 - קריאת הקובץ `lyrics.lrc`
 
 ### שלב 12: יצירת ארכיון ZIP

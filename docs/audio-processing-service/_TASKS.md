@@ -16,7 +16,7 @@
 3. **בדיקת תקינות** הנתיב וקיום הקובץ
 
 ### 3. טעינה ועיבוד הקובץ
-1. **קורא את הקובץ** `original.mp3` מה-Shared Storage לפי הנתיב שנשלף
+1. **קורא את הקובץ** `original.wav` מה-Shared Storage לפי הנתיב שנשלף
 2. **בדיקת תקינות** הקובץ (פורמט, איכות, משך)
 3. **טעינת הקובץ** לזיכרון לעיבוד
 
@@ -32,7 +32,7 @@
 6. **הערכת איכות** התוצר (Quality Score)
 
 ### 5. שמירה ועדכון
-1. **שומר את התוצר** בנתיב `shared/audio/{video_id}/vocals_removed.mp3`
+1. **שומר את התוצר** בנתיב `shared/audio/{video_id}/vocals_removed.wav`
 2. **מעדכן את מסמך השיר** ב-Elasticsearch:
    - `status.audio_processing: "completed"`
    - הנתיב החדש והמטאדאטה
@@ -52,7 +52,7 @@
 
 ### עם Shared Storage
 - **קורא:** קבצי אודיו מקוריים לפי הנתיב שנשלף מ-Elasticsearch
-- **כותב:** קבצי אודיו מעובדים לנתיב `/shared/audio/{video_id}/vocals_removed.mp3`
+- **כותב:** קבצי אודיו מעובדים לנתיב `/shared/audio/{video_id}/vocals_removed.wav`
 
 ### עם Audio Processing Libraries
 - **משתמש:** librosa לניתוח אודיו ועיבוד ספקטרלי
@@ -63,7 +63,7 @@
 
 ### Phase 1: תשתית אודיו בסיסית
 - [ ] הקמת פרויקט Python עם תלויות אודיו (librosa, numpy, scipy)
-- [ ] יישום קריאה וכתיבה בסיסית של קבצי MP3
+- [ ] יישום קריאה וכתיבה בסיסית של קבצי WAV
 - [ ] ולידציה של פורמטים ואיכות אודיו
 - [ ] הגדרת logging מפורט לתהליכי עיבוד
 - [ ] יצירת unit tests לפונקציות אודיו בסיסיות
@@ -180,7 +180,7 @@ audio_processing_config = {
 
     # Output Settings
     "output": {
-        "format": "mp3",
+        "format": "wav",
         "bitrate": "128k",
         "sample_rate": 44100,
         "normalize": True
@@ -251,7 +251,7 @@ def process_audio(video_id: str):
     original_path = doc["_source"]["file_paths"]["original"]
 
     # שלב 2: עיבוד הקובץ
-    vocals_removed_path = f"/shared/audio/{video_id}/vocals_removed.mp3"
+    vocals_removed_path = f"/shared/audio/{video_id}/vocals_removed.wav"
     process_vocal_removal(original_path, vocals_removed_path)
 
     # שלב 3: עדכון Elasticsearch

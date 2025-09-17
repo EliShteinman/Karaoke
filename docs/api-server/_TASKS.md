@@ -43,7 +43,7 @@
 2. **שליפת נתיבי הקבצים** מ-Elasticsearch (קריאה בלבד)
 3. **וידוא שהשיר מוכן** - בדיקת קיום שני הקבצים הנדרשים
 4. **קריאת קבצים** מה-Shared Storage:
-   - `/shared/audio/{video_id}/vocals_removed.mp3`
+   - `/shared/audio/{video_id}/vocals_removed.wav`
    - `/shared/audio/{video_id}/lyrics.lrc`
 5. **יצירת ארכיון ZIP** במטמון זמני
 6. **החזרת קובץ ZIP** ללקוח עם Content-Type מתאים

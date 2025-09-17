@@ -38,21 +38,22 @@ class SpeechToTextService:
         self.logger.info(f"Starting transcription process for audio file: {audio_path}")
         self.logger.debug(f"Model configuration: {self.model_name} (device: {self.config.stt_device}, compute: {self.config.stt_compute_type})")
 
-        # Use auto-detection for better multilingual support
-        # This allows Whisper to detect the actual language of the audio
-        preferred_language = None  # Let Whisper auto-detect the language
+        # Use Hebrew as preferred language for Israeli music content
+        # Hebrew-optimized model should work better with explicit language setting
+        preferred_language = "he"  # Hebrew language for better transcription
 
         transcription_params: Dict[str, Any] = {
             "language": preferred_language,  # Single language code or None for auto-detection
             "beam_size": 5,
             "word_timestamps": True,
             "vad_filter": True,
+            "initial_prompt": "שיר בעברית עם מילים וכתוביות, מוסיקה עברית עם מילים",  # Hebrew prompt for better context
             "vad_parameters": {
-                "threshold": 0.5,
-                "min_speech_duration_ms": 250,
-                "max_speech_duration_s": 30,
-                "min_silence_duration_ms": 2000,
-                "speech_pad_ms": 400
+                "threshold": 0.2,  # More aggressive threshold for music with vocals
+                "min_speech_duration_ms": 100,  # Even shorter for brief musical phrases
+                "max_speech_duration_s": 30,  # Shorter max for better line segmentation
+                "min_silence_duration_ms": 500,  # Shorter silence gaps between lyrics
+                "speech_pad_ms": 150  # Minimal padding for tighter vocal detection
             }
         }
 

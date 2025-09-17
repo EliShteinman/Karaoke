@@ -106,7 +106,7 @@ STORAGE_BASE_PATH=/shared                       # Base directory for files
 YOUTUBE_API_KEY=your_api_key                    # YouTube API key
 YOUTUBE_MAX_RESULTS=10                          # Search results count
 YOUTUBE_DOWNLOAD_QUALITY=bestaudio             # Download quality
-YOUTUBE_DOWNLOAD_FORMAT=mp3                    # File format
+YOUTUBE_DOWNLOAD_FORMAT=wav                    # File format
 ```
 
 ### Audio Processing Service
@@ -136,7 +136,7 @@ STORAGE_BASE_PATH=/shared                       # Base directory for files
 ```bash
 # Audio processing specific additions
 AUDIO_VOCAL_REMOVAL_METHOD=spleeter            # Vocal removal method
-AUDIO_OUTPUT_FORMAT=mp3                        # Output format
+AUDIO_OUTPUT_FORMAT=wav                        # Output format
 AUDIO_SAMPLE_RATE=44100                        # Sample rate
 AUDIO_BITRATE=128k                             # Bitrate quality
 ```
@@ -238,7 +238,7 @@ class Config:
 
         self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))
         self.download_quality = os.getenv("YOUTUBE_DOWNLOAD_QUALITY", "bestaudio")
-        self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "mp3")
+        self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "wav")
 
 # Create configuration instance
 config = Config()

@@ -65,7 +65,7 @@ class YouTubeServiceConfig:
         #     raise ValueError("YOUTUBE_API_KEY environment variable is required")
         # self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))
         # self.download_quality = os.getenv("YOUTUBE_DOWNLOAD_QUALITY", "bestaudio")
-        # self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "mp3")
+        # self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "wav")
 
 
 class AudioServiceConfig:
@@ -98,7 +98,7 @@ class AudioServiceConfig:
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):
         # self.vocal_removal_method = os.getenv("AUDIO_VOCAL_REMOVAL_METHOD", "spleeter")
-        # self.output_format = os.getenv("AUDIO_OUTPUT_FORMAT", "mp3")
+        # self.output_format = os.getenv("AUDIO_OUTPUT_FORMAT", "wav")
         # self.sample_rate = int(os.getenv("AUDIO_SAMPLE_RATE", "44100"))
         # self.bitrate = os.getenv("AUDIO_BITRATE", "128k")
 

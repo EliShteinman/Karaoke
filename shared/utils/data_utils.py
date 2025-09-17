@@ -22,8 +22,8 @@ def normalize_elasticsearch_song_document(raw_data: Dict[str, Any]) -> Dict[str,
         Normalized dictionary with nested structures for status, file_paths, and metadata
 
     Example:
-        Input: {'file_paths.original': 'audio/vid/file.mp3', 'status.download': 'completed'}
-        Output: {'file_paths': {'original': 'audio/vid/file.mp3'}, 'status': {'download': 'completed'}}
+        Input: {'file_paths.original': 'audio/vid/file.wav', 'status.download': 'completed'}
+        Output: {'file_paths': {'original': 'audio/vid/file.wav'}, 'status': {'download': 'completed'}}
     """
     normalized = {}
 

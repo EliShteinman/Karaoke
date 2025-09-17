@@ -131,8 +131,8 @@
 **מבנה נתיבים:**
 ```
 /shared/audio/{video_id}/
-├── original.mp3           # YouTube Service
-├── vocals_removed.mp3     # Audio Processing Service
+├── original.wav           # YouTube Service
+├── vocals_removed.wav     # Audio Processing Service
 └── lyrics.lrc            # Transcription Service
 ```
 

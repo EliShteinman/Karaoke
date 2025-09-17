@@ -165,6 +165,7 @@ cython_debug/
 services/streamlitClient/tmp_karaoke
 data
 .vscode
+tmp
 .claude
 services/audioProcessingService/tmp
 audio
