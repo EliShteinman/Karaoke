@@ -221,13 +221,19 @@ class ElasticsearchUpdater:
         try:
             self.logger.debug(f"[{video_id}] - Extracting searchable text from: {lyrics_path}")
 
+            # Convert absolute path to relative path that file manager expects
+            if lyrics_path.startswith('data/audio/'):
+                relative_path = lyrics_path[len('data/audio/'):]
+            else:
+                relative_path = lyrics_path
+
             # Verify file exists before reading
-            if not self.file_manager.storage.file_exists(lyrics_path):
+            if not self.file_manager.storage.file_exists(relative_path):
                 self.logger.warning(f"[{video_id}] - LRC file not found at: {lyrics_path}")
                 return ""
 
             # Use proper file manager method to read file content
-            lyrics_content = self.file_manager.read_file(lyrics_path)
+            lyrics_content = self.file_manager.storage.read_text_file(relative_path)
 
             if not lyrics_content:
                 self.logger.warning(f"[{video_id}] - LRC file is empty: {lyrics_path}")
