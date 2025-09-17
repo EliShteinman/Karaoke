@@ -121,12 +121,13 @@ class ElasticsearchUpdater:
         # Handle file_paths - convert flat file_paths fields to nested object
         file_paths = {}
         for path_type in ['original', 'vocals_removed', 'lyrics']:
-            # Try nested first, then flat structure
-            if 'file_paths' in raw_data and isinstance(raw_data['file_paths'], dict):
+            # Try flat structure first (this is the actual format from repository)
+            if f'file_paths.{path_type}' in raw_data:
+                file_paths[path_type] = raw_data[f'file_paths.{path_type}']
+            # Try nested structure as fallback
+            elif 'file_paths' in raw_data and isinstance(raw_data['file_paths'], dict):
                 if path_type in raw_data['file_paths']:
                     file_paths[path_type] = raw_data['file_paths'][path_type]
-            elif f'file_paths.{path_type}' in raw_data:
-                file_paths[path_type] = raw_data[f'file_paths.{path_type}']
         normalized['file_paths'] = file_paths
 
         # Handle metadata - convert flat metadata fields to nested object
