@@ -166,3 +166,4 @@ services/streamlitClient/tmp_karaoke
 data
 .vscode
 .claude
+services/audioProcessingService/tmp
