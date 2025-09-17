@@ -272,7 +272,8 @@ class TranscriptionConsumer:
             lrc_content = self._build_lrc_content(segments, lrc_metadata)
 
             # Create the file path relative to the storage base path using cross-platform handling
-            relative_lyrics_path = str(PathManager.join(video_id, "lyrics.lrc"))
+            # File manager expects paths relative to its base, so just video_id/lyrics.lrc
+            relative_lyrics_path = str(PathManager.join(video_id, "lyrics.lrc")).replace('\\', '/')
             lyrics_bytes = lrc_content.encode("utf-8")
 
             # Save using storage directly to avoid double base path
