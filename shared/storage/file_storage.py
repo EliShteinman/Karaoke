@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import BinaryIO, Dict, List, Optional, Union
 
+from shared.utils.path_utils import PathManager, build_relative_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,22 +69,23 @@ class VolumeFileStorage(FileStorageInterface):
     For the current phase where all files are stored in shared volumes
     """
 
-    def __init__(self, base_path: str = "/shared"):
+    def __init__(self, base_path: str = "shared"):
         """
         Initialize with base path for shared storage
 
         Args:
-            base_path: Base directory for file storage (default: /shared)
+            base_path: Base directory for file storage (default: shared)
         """
-        self.base_path = Path(base_path)
+        self.base_path = PathManager.normalize_path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"VolumeFileStorage initialized with base path: {self.base_path}")
 
     def _get_full_path(self, file_path: str) -> Path:
-        """Convert relative path to full path"""
-        if file_path.startswith("/"):
-            return Path(file_path)
-        return self.base_path / file_path
+        """Convert relative path to full path using cross-platform path handling"""
+        path_obj = PathManager.normalize_path(file_path)
+        if path_obj.is_absolute():
+            return path_obj
+        return self.base_path / PathManager.ensure_relative_path(file_path)
 
     def save_file(self, file_content: bytes, file_path: str) -> str:
         """Save file content and return the actual path"""
@@ -214,41 +217,41 @@ class KaraokeFileManager:
 
     def save_original_audio(self, video_id: str, audio_content: bytes) -> str:
         """Save original downloaded audio file"""
-        file_path = f"audio/{video_id}/original.mp3"
+        file_path = build_relative_path("audio", video_id, "original.mp3")
         return self.storage.save_file(audio_content, file_path)
 
     def save_vocals_removed_audio(self, video_id: str, audio_content: bytes) -> str:
         """Save processed audio with vocals removed"""
-        file_path = f"audio/{video_id}/vocals_removed.mp3"
+        file_path = build_relative_path("audio", video_id, "vocals_removed.mp3")
         return self.storage.save_file(audio_content, file_path)
 
     def save_lyrics_file(self, video_id: str, lyrics_content: str) -> str:
         """Save LRC lyrics file"""
-        file_path = f"audio/{video_id}/lyrics.lrc"
+        file_path = build_relative_path("audio", video_id, "lyrics.lrc")
         lyrics_bytes = lyrics_content.encode("utf-8")
         return self.storage.save_file(lyrics_bytes, file_path)
 
     def get_original_audio(self, video_id: str) -> bytes:
         """Get original audio file content"""
-        file_path = f"audio/{video_id}/original.mp3"
+        file_path = build_relative_path("audio", video_id, "original.mp3")
         return self.storage.read_file(file_path)
 
     def get_vocals_removed_audio(self, video_id: str) -> bytes:
         """Get processed audio file content"""
-        file_path = f"audio/{video_id}/vocals_removed.mp3"
+        file_path = build_relative_path("audio", video_id, "vocals_removed.mp3")
         return self.storage.read_file(file_path)
 
     def get_lyrics(self, video_id: str) -> str:
         """Get lyrics file content as string"""
-        file_path = f"audio/{video_id}/lyrics.lrc"
+        file_path = build_relative_path("audio", video_id, "lyrics.lrc")
         return self.storage.read_text_file(file_path)
 
     def get_song_files_info(self, video_id: str) -> Dict[str, Dict]:
         """Get information about all files for a song"""
         files = {
-            "original": f"audio/{video_id}/original.mp3",
-            "vocals_removed": f"audio/{video_id}/vocals_removed.mp3",
-            "lyrics": f"audio/{video_id}/lyrics.lrc",
+            "original": build_relative_path("audio", video_id, "original.mp3"),
+            "vocals_removed": build_relative_path("audio", video_id, "vocals_removed.mp3"),
+            "lyrics": build_relative_path("audio", video_id, "lyrics.lrc"),
         }
 
         info = {}
@@ -270,8 +273,8 @@ class KaraokeFileManager:
 
     def is_song_ready_for_karaoke(self, video_id: str) -> bool:
         """Check if song has both required files for karaoke"""
-        vocals_path = f"audio/{video_id}/vocals_removed.mp3"
-        lyrics_path = f"audio/{video_id}/lyrics.lrc"
+        vocals_path = build_relative_path("audio", video_id, "vocals_removed.mp3")
+        lyrics_path = build_relative_path("audio", video_id, "lyrics.lrc")
 
         return (
             self.storage.file_exists(vocals_path)
@@ -301,9 +304,9 @@ class KaraokeFileManager:
     def delete_song_files(self, video_id: str) -> Dict[str, bool]:
         """Delete all files for a song and return deletion status"""
         files = {
-            "original": f"audio/{video_id}/original.mp3",
-            "vocals_removed": f"audio/{video_id}/vocals_removed.mp3",
-            "lyrics": f"audio/{video_id}/lyrics.lrc",
+            "original": build_relative_path("audio", video_id, "original.mp3"),
+            "vocals_removed": build_relative_path("audio", video_id, "vocals_removed.mp3"),
+            "lyrics": build_relative_path("audio", video_id, "lyrics.lrc"),
         }
 
         results = {}
@@ -354,7 +357,7 @@ def create_file_manager(storage_type: str = "volume", **kwargs) -> KaraokeFileMa
         KaraokeFileManager instance
     """
     if storage_type == "volume":
-        base_path = kwargs.get("base_path", "/shared")
+        base_path = kwargs.get("base_path", "shared")
         storage = VolumeFileStorage(base_path)
     else:
         raise ValueError(f"Unsupported storage type: {storage_type}")
