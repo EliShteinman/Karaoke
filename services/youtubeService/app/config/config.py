@@ -59,7 +59,7 @@ class YouTubeServiceConfig:
 
     # ===== YTDLP Configuration =====
     YTDLP_OUTPUT_TEMPLATE: str = os.getenv("YTDLP_OUTPUT_TEMPLATE", str(Path("data") / "audio" / "%(id)s" / "original.%(ext)s"))
-    YTDLP_AUDIO_FORMAT: str = os.getenv("YTDLP_AUDIO_FORMAT", "mp3")
+    YTDLP_AUDIO_FORMAT: str = os.getenv("YTDLP_AUDIO_FORMAT", "wav")
     YTDLP_AUDIO_QUALITY: str = os.getenv("YTDLP_AUDIO_QUALITY", "128K")
 
     # ===== YouTube Cookies Configuration =====

@@ -200,14 +200,14 @@ class YouTubeDownloadService:
 
         # YTDLP options as specified in schema
         ydl_opts = {
-            'format': 'bestaudio[ext=mp3]/best[ext=mp4]/best',
-            'outtmpl': str(output_file.with_suffix('')),  # YTDLP will add .mp3
+            'format': 'bestaudio/best',
+            'outtmpl': str(output_file.with_suffix('')),  # YTDLP will add .wav
             'extractaudio': True,
-            'audioformat': 'mp3',
+            'audioformat': 'wav',
             'audioquality': '128K',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
+                'preferredcodec': 'wav',
                 'preferredquality': '128',
             }],
             'no_warnings': False,
@@ -288,7 +288,7 @@ class YouTubeDownloadService:
                     "bitrate": 128,
                     "sample_rate": 44100,
                     "file_size": file_size,
-                    "format": "mp3"
+                    "format": "wav"
                 },
                 timestamp=timestamp
             )

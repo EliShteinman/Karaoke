@@ -65,7 +65,7 @@ def load_assets(vid: str) -> Tuple[Optional[bytes], Optional[str]]:
             with zipfile.ZipFile(io.BytesIO(zip_content)) as thezip:
                 for filename in thezip.namelist():
                     try:
-                        if filename.endswith('.mp3'):
+                        if filename.endswith('.wav'):
                             audio_bytes = thezip.read(filename)
                             logger.info(f"Extracted audio ({len(audio_bytes)} bytes) for {vid}")
                         elif filename.endswith('.lrc'):
@@ -129,7 +129,7 @@ with main_cols[0]:
 
             # Audio player
             try:
-                st.audio(audio_bytes, format='audio/mp3')
+                st.audio(audio_bytes, format='audio/wav')
             except Exception as e:
                 logger.error(f"Error creating audio player for {video_id}: {e}")
                 st.error("שגיאה בטעינת נגן האודיו")

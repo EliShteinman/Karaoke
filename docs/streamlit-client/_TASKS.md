@@ -30,7 +30,7 @@
 ### 4. נגן קריוקי מתקדם
 1. **הורדת קבצי השיר** דרך `GET /songs/{video_id}/download`
 2. **חילוץ קבצים** מהארכיון ZIP:
-   - `vocals_removed.mp3` - קובץ השמע ללא ווקאל
+   - `vocals_removed.wav` - קובץ השמע ללא ווקאל
    - `lyrics.lrc` - קובץ הכתוביות עם timestamps
 3. **פרסור קובץ LRC** למבנה נתונים פנימי
 4. **טעינת קובץ השמע** לרכיב האודיו של Streamlit
@@ -57,7 +57,7 @@
 ### עם דפדפן המשתמש
 - **מציג:** ממשק משתמש אינטראקטיבי
 - **מקבל:** קלט משתמש (חיפושים, לחיצות, בקרות נגן)
-- **מנגן:** קבצי אודיו MP3
+- **מנגן:** קבצי אודיו WAV
 - **מציג:** כתוביות מסונכרנות בזמן אמת
 
 ### עם מערכת הקבצים המקומית (זמני)
@@ -267,7 +267,7 @@ if 'session_state' not in st.session_state:
 def create_audio_player(audio_file_path):
     audio_component = st_audio(
         audio_file_path,
-        format='audio/mp3',
+        format='audio/wav',
         start_time=0,
         sample_rate=44100,
         key=f"audio_player_{st.session_state.current_song['video_id']}"

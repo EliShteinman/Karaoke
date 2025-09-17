@@ -30,10 +30,10 @@ def separate_vocals(input_file: str, save_path: str, output_dir: str = "output")
     Separate vocals from instrumental music using Demucs.
 
     This function uses the Demucs ML model to separate audio into vocals and accompaniment.
-    The final output files have fixed names: vocals_removed.mp3 (accompaniment only).
+    The final output files have fixed names: vocals_removed.wav (accompaniment only).
 
     Args:
-        input_file: Path to input audio file (mp3/wav)
+        input_file: Path to input audio file (wav)
         save_path: Directory where to save the final output files
         output_dir: Temporary directory for Demucs processing
 
@@ -108,20 +108,20 @@ def separate_vocals(input_file: str, save_path: str, output_dir: str = "output")
         os.makedirs(save_path, exist_ok=True)
 
         # Save final output files with fixed names
-        vocals_removed_path = os.path.join(save_path, "vocals_removed.mp3")
+        vocals_removed_path = os.path.join(save_path, "vocals_removed.wav")
         vocals_only_path = os.path.join(save_path, "vocals.wav")
 
         logger.info(f"Saving processed audio files to {save_path}")
 
-        # Save accompaniment (vocals removed) as MP3
-        sf.write(vocals_removed_path, accompaniment, sr, format='MP3', subtype='MP3')
+        # Save accompaniment (vocals removed) as WAV
+        sf.write(vocals_removed_path, accompaniment, sr)
 
         # Save vocals as WAV for potential future use
         sf.write(vocals_only_path, vocals, sr)
 
         # Verify output files were created and have reasonable sizes
         if not os.path.exists(vocals_removed_path):
-            raise AudioSeparationError("Failed to create vocals_removed.mp3 file")
+            raise AudioSeparationError("Failed to create vocals_removed.wav file")
 
         if not os.path.exists(vocals_only_path):
             raise AudioSeparationError("Failed to create vocals.wav file")

@@ -239,7 +239,7 @@ def find_current_line(current_time, lyrics):
 
 ### ניהול קבצי אודיו
 **טעינה:** Streamlit Audio Component
-**פורמט נתמך:** MP3, WAV
+**פורמט נתמך:** WAV
 **תכונות:**
 - הפעלה/השהיה
 - דילוג לזמן מסוים

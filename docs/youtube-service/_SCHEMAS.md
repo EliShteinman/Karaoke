@@ -84,11 +84,11 @@ YouTube Service מטפל בכל הלוגיקה הקשורה ל-YouTube: חיפו
 ### קבצים למערכת הקבצים
 
 #### קובץ האודיו המקורי
-**נתיב קבוע:** `/shared/audio/{video_id}/original.mp3`
-**פורמט:** MP3, 44.1kHz, stereo
+**נתיב קבוע:** `/shared/audio/{video_id}/original.wav`
+**פורמט:** WAV, 44.1kHz, stereo
 **איכות:** 128kbps (או הטובה ביותר הזמינה)
 
-**דוגמה:** `/shared/audio/dQw4w9WgXcQ/original.mp3`
+**דוגמה:** `/shared/audio/dQw4w9WgXcQ/original.wav`
 
 ### הודעות Kafka (3 הודעות נפרדות - רק video_id)
 
@@ -105,7 +105,7 @@ YouTube Service מטפל בכל הלוגיקה הקשורה ל-YouTube: חיפו
     "bitrate": 128,
     "sample_rate": 44100,
     "file_size": 3456789,
-    "format": "mp3"
+    "format": "wav"
   },
   "timestamp": "2025-09-15T10:32:15Z"
 }
@@ -166,7 +166,7 @@ YouTube Service מטפל בכל הלוגיקה הקשורה ל-YouTube: חיפו
 ```json
 {
   "doc": {
-    "file_paths.original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+    "file_paths.original": "/shared/audio/dQw4w9WgXcQ/original.wav",
     "status.download": "completed",
     "status.overall": "processing",
     "updated_at": "2025-09-15T10:32:15Z",
@@ -182,19 +182,19 @@ YouTube Service מטפל בכל הלוגיקה הקשורה ל-YouTube: חיפו
 ### קלט מ-YTDLP
 
 #### הגדרות YTDLP
-**Format:** `bestaudio[ext=mp3]/best[ext=mp4]/best`
+**Format:** `bestaudio/best`
 **Output Template:** `/shared/audio/{video_id}/original.%(ext)s`
 **Options:**
 ```python
 ytdl_opts = {
-    'format': 'bestaudio[ext=mp3]/best[ext=mp4]/best',
+    'format': 'bestaudio/best',
     'outtmpl': '/shared/audio/%(id)s/original.%(ext)s',
     'extractaudio': True,
-    'audioformat': 'mp3',
+    'audioformat': 'wav',
     'audioquality': '128K',
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
+        'preferredcodec': 'wav',
         'preferredquality': '128',
     }]
 }

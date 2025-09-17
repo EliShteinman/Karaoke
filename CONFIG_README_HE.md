@@ -95,7 +95,7 @@ STORAGE_BASE_PATH=/shared                       # תיקיית בסיס לקבצ
 YOUTUBE_API_KEY=your_api_key                    # מפתח API של YouTube
 YOUTUBE_MAX_RESULTS=10                          # כמות תוצאות חיפוש
 YOUTUBE_DOWNLOAD_QUALITY=bestaudio             # איכות הורדה
-YOUTUBE_DOWNLOAD_FORMAT=mp3                    # פורמט קובץ
+YOUTUBE_DOWNLOAD_FORMAT=wav                    # פורמט קובץ
 ```
 
 ### Audio Processing Service
@@ -125,7 +125,7 @@ STORAGE_BASE_PATH=/shared                       # תיקיית בסיס לקבצ
 ```bash
 # תוספות ספציפיות לעיבוד אודיו
 AUDIO_VOCAL_REMOVAL_METHOD=spleeter            # שיטת הסרת שירה
-AUDIO_OUTPUT_FORMAT=mp3                        # פורמט פלט
+AUDIO_OUTPUT_FORMAT=wav                        # פורמט פלט
 AUDIO_SAMPLE_RATE=44100                        # קצב דגימה
 AUDIO_BITRATE=128k                             # איכות bitrate
 ```
@@ -227,7 +227,7 @@ class Config:
 
         self.max_results = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))
         self.download_quality = os.getenv("YOUTUBE_DOWNLOAD_QUALITY", "bestaudio")
-        self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "mp3")
+        self.download_format = os.getenv("YOUTUBE_DOWNLOAD_FORMAT", "wav")
 
 # יצירת מופע קונפיגורציה
 config = Config()

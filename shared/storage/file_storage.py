@@ -224,11 +224,11 @@ class KaraokeFileManager:
 
     def get_relative_path_original(self, video_id: str) -> str:
         """Get standardized relative path for original audio file"""
-        return build_relative_path("audio", video_id, "original.mp3")
+        return build_relative_path("audio", video_id, "original.wav")
 
     def get_relative_path_vocals_removed(self, video_id: str) -> str:
         """Get standardized relative path for vocals removed audio file"""
-        return build_relative_path("audio", video_id, "vocals_removed.mp3")
+        return build_relative_path("audio", video_id, "vocals_removed.wav")
 
     def get_relative_path_lyrics(self, video_id: str) -> str:
         """Get standardized relative path for lyrics file"""
@@ -318,7 +318,7 @@ class KaraokeFileManager:
         zip_buffer = io.BytesIO()
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr("vocals_removed.mp3", vocals_content)
+            zip_file.writestr("vocals_removed.wav", vocals_content)
             zip_file.writestr("lyrics.lrc", lyrics_content.encode("utf-8"))
 
         zip_content = zip_buffer.getvalue()
@@ -343,7 +343,7 @@ class KaraokeFileManager:
     def get_storage_stats(self) -> Dict:
         """Get storage statistics"""
         try:
-            audio_files = self.storage.list_files("audio", "**/*.mp3")
+            audio_files = self.storage.list_files("audio", "**/*.wav")
             lyrics_files = self.storage.list_files("audio", "**/*.lrc")
 
             total_audio_size = sum(

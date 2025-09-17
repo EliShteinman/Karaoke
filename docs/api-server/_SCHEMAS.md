@@ -235,7 +235,7 @@ class StatusResponse(BaseModel):
 **Content-Type:** `application/zip`
 
 **פורמט:** קובץ ZIP המכיל:
-- `vocals_removed.mp3` (קובץ שמע ללא ווקאל)
+- `vocals_removed.wav` (קובץ שמע ללא ווקאל)
 - `lyrics.lrc` (קובץ כתוביות עם timestamps)
 
 ### בקשות HTTP ל-YouTube Service (פנימיות)
@@ -289,8 +289,8 @@ class StatusResponse(BaseModel):
     "artist": "Rick Astley",
     "status": "processing",
     "file_paths": {
-      "original": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-      "vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
+      "original": "/shared/audio/dQw4w9WgXcQ/original.wav",
+      "vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav",
       "lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc"
     },
     "created_at": "2025-09-15T10:30:00Z",
@@ -304,7 +304,7 @@ class StatusResponse(BaseModel):
 
 ### קריאת קבצי קריוקי מוכנים
 **נתיבים:**
-- **אודיו ללא ווקאל:** `/shared/audio/{video_id}/vocals_removed.mp3`
+- **אודיו ללא ווקאל:** `/shared/audio/{video_id}/vocals_removed.wav`
 - **כתוביות:** `/shared/audio/{video_id}/lyrics.lrc`
 
 **מטרה:** יצירת קובץ ZIP להורדה ללקוח

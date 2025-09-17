@@ -139,7 +139,7 @@ class PathManager:
 
         Args:
             video_id: Video identifier
-            filename: Audio filename (e.g., 'original.mp3', 'vocals_removed.mp3')
+            filename: Audio filename (e.g., 'original.wav', 'vocals_removed.wav')
 
         Returns:
             Standardized audio file path

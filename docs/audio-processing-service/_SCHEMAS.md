@@ -39,7 +39,7 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
     "video_id": "dQw4w9WgXcQ",
     "title": "Rick Astley - Never Gonna Give You Up",
     "file_paths": {
-      "original": "/shared/audio/dQw4w9WgXcQ/original.mp3"
+      "original": "/shared/audio/dQw4w9WgXcQ/original.wav"
     },
     "status": "processing"
   }
@@ -52,29 +52,29 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
 
 #### קובץ האודיו המקורי
 **נתיב:** נשלף מ-Elasticsearch (`file_paths.original`)
-**פורמט צפוי:** MP3, 44.1kHz, stereo
-**דוגמה:** `/shared/audio/dQw4w9WgXcQ/original.mp3`
+**פורמט צפוי:** WAV, 44.1kHz, stereo
+**דוגמה:** `/shared/audio/dQw4w9WgXcQ/original.wav`
 
 **מאפייני הקובץ הנדרשים:**
 - קצב דגימה: 44,100 Hz
 - ערוצים: 2 (stereo)
 - עומק סיביות: 16-bit
-- פורמט: MP3 או WAV
+- פורמט: WAV או WAV
 
 ## פלט (Outputs)
 
 ### קבצים למערכת הקבצים
 
 #### קובץ האודיו ללא ווקאל
-**נתיב קבוע:** `/shared/audio/{video_id}/vocals_removed.mp3`
-**פורמט:** MP3, 44.1kHz, stereo (ללא ווקאל)
-**דוגמה:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3`
+**נתיב קבוע:** `/shared/audio/{video_id}/vocals_removed.wav`
+**פורמט:** WAV, 44.1kHz, stereo (ללא ווקאל)
+**דוגמה:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.wav`
 
 **מאפייני קובץ הפלט:**
 - קצב דגימה: 44,100 Hz (זהה למקור)
 - ערוצים: 2 (stereo)
 - עומק סיביות: 16-bit
-- איכות: 128kbps MP3
+- איכות: 128kbps WAV
 - עיבוד: הסרת ווקאל באמצעות Center Channel Extraction
 
 ### עדכונים ל-Elasticsearch
@@ -87,7 +87,7 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
 {
   "doc": {
     "status.audio_processing": "completed",
-    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
+    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav",
     "updated_at": "2025-09-15T10:33:45Z",
     "processing_metadata.audio": {
       "processing_time": 45.2,
@@ -145,21 +145,21 @@ GET /songs/_doc/dQw4w9WgXcQ
 ```json
 {
   "file_paths": {
-    "original": "/shared/audio/dQw4w9WgXcQ/original.mp3"
+    "original": "/shared/audio/dQw4w9WgXcQ/original.wav"
   }
 }
 ```
 
 ### 3. עיבוד הקובץ
-**קלט:** `/shared/audio/dQw4w9WgXcQ/original.mp3`
+**קלט:** `/shared/audio/dQw4w9WgXcQ/original.wav`
 **עיבוד:** Center Channel Extraction
-**פלט:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3`
+**פלט:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.wav`
 
 ### 4. עדכון Elasticsearch
 ```json
 {
   "doc": {
-    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3"
+    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav"
   }
 }
 ```
@@ -267,8 +267,8 @@ quality_metrics = {
   "video_id": "dQw4w9WgXcQ",
   "stage": "vocal_removal",
   "processing_time": 45.2,
-  "input_file": "/shared/audio/dQw4w9WgXcQ/original.mp3",
-  "output_file": "/shared/audio/dQw4w9WgXcQ/vocals_removed.mp3",
+  "input_file": "/shared/audio/dQw4w9WgXcQ/original.wav",
+  "output_file": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav",
   "quality_score": 0.85,
   "message": "Audio processing completed successfully"
 }

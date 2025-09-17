@@ -40,7 +40,7 @@ Transcription Service אחראי על תמלול השירים ויצירת קב�
     "title": "Rick Astley - Never Gonna Give You Up",
     "artist": "Rick Astley",
     "file_paths": {
-      "original": "/shared/audio/dQw4w9WgXcQ/original.mp3"
+      "original": "/shared/audio/dQw4w9WgXcQ/original.wav"
     },
     "status": "processing"
   }
@@ -53,8 +53,8 @@ Transcription Service אחראי על תמלול השירים ויצירת קב�
 
 #### קובץ האודיו המקורי
 **נתיב:** נשלף מ-Elasticsearch (`file_paths.original`)
-**פורמט צפוי:** MP3, 44.1kHz, stereo (עם ווקאל)
-**דוגמה:** `/shared/audio/dQw4w9WgXcQ/original.mp3`
+**פורמט צפוי:** WAV, 44.1kHz, stereo (עם ווקאל)
+**דוגמה:** `/shared/audio/dQw4w9WgXcQ/original.wav`
 
 **מאפייני הקובץ הנדרשים:**
 - קצב דגימה: 16,000-48,000 Hz
@@ -179,13 +179,13 @@ GET /songs/_doc/dQw4w9WgXcQ
 ```json
 {
   "file_paths": {
-    "original": "/shared/audio/dQw4w9WgXcQ/original.mp3"
+    "original": "/shared/audio/dQw4w9WgXcQ/original.wav"
   }
 }
 ```
 
 ### 3. תמלול עם Whisper
-**קלט:** `/shared/audio/dQw4w9WgXcQ/original.mp3`
+**קלט:** `/shared/audio/dQw4w9WgXcQ/original.wav`
 **עיבוד:** Speech-to-Text עם Whisper Large v3
 **פלט:** קובץ LRC עם timestamps
 
@@ -349,7 +349,7 @@ quality_metrics = {
   "video_id": "dQw4w9WgXcQ",
   "stage": "transcription_complete",
   "processing_time": 32.1,
-  "input_file": "/shared/audio/dQw4w9WgXcQ/original.mp3",
+  "input_file": "/shared/audio/dQw4w9WgXcQ/original.wav",
   "output_file": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
   "confidence_score": 0.92,
   "word_count": 156,
