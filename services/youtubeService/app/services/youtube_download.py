@@ -40,6 +40,14 @@ class YouTubeDownloadService:
         self.kafka_producer = KafkaProducerSync(bootstrap_servers=config.KAFKA_BOOTSTRAP_SERVERS)
         self.file_manager = create_file_manager(storage_type="volume", base_path=str(self.base_path))
 
+        # Start Kafka producer once and keep it running
+        try:
+            self.kafka_producer.start()
+            self.logger.info("Kafka producer started successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to start Kafka producer: {e}")
+            raise
+
         self.logger.info("YouTubeDownloadService initialized with shared services")
 
     def start_download_async(
@@ -305,24 +313,24 @@ class YouTubeDownloadService:
                 action="transcribe"
             )
 
-            # Start Kafka producer
-            self.kafka_producer.start()
+            # Send messages (producer is already started in constructor)
+            success1 = self.kafka_producer.send_message("song.downloaded", downloaded_message.dict())
+            success2 = self.kafka_producer.send_message("audio.process.requested", audio_process_message.dict())
+            success3 = self.kafka_producer.send_message("transcription.process.requested", transcription_message.dict())
 
-            # Send messages
-            self.kafka_producer.send_message("song.downloaded", downloaded_message.dict())
-            self.kafka_producer.send_message("audio.process.requested", audio_process_message.dict())
-            self.kafka_producer.send_message("transcription.process.requested", transcription_message.dict())
-
-            self.logger.info(f"All 3 Kafka messages sent successfully for video_id='{video_id}'")
+            if success1 and success2 and success3:
+                self.logger.info(f"All 3 Kafka messages sent successfully for video_id='{video_id}'")
+            else:
+                failures = []
+                if not success1: failures.append("song.downloaded")
+                if not success2: failures.append("audio.process.requested")
+                if not success3: failures.append("transcription.process.requested")
+                self.logger.error(f"Failed to send some Kafka messages for video_id='{video_id}': {failures}")
+                raise Exception(f"Failed to send messages to: {failures}")
 
         except Exception as e:
             self.logger.error(f"Failed to send Kafka messages for video_id='{video_id}': {e}")
             raise
-        finally:
-            try:
-                self.kafka_producer.stop()
-            except Exception as e:
-                self.logger.error(f"Error stopping Kafka producer: {e}")
 
     def _handle_download_error(self, video_id: str, error_message: str) -> None:
         """Handle download error by updating Elasticsearch and sending error message to Kafka"""
@@ -352,16 +360,13 @@ class YouTubeDownloadService:
             )
 
             try:
-                self.kafka_producer.start()
-                self.kafka_producer.send_message("song.download.failed", error_message_obj.dict())
-                self.logger.info(f"Error message sent to Kafka for video_id='{video_id}'")
+                success = self.kafka_producer.send_message("song.download.failed", error_message_obj.dict())
+                if success:
+                    self.logger.info(f"Error message sent to Kafka for video_id='{video_id}'")
+                else:
+                    self.logger.error(f"Failed to send error message to Kafka for video_id='{video_id}'")
             except Exception as kafka_error:
                 self.logger.error(f"Failed to send error message to Kafka: {kafka_error}")
-            finally:
-                try:
-                    self.kafka_producer.stop()
-                except Exception as e:
-                    self.logger.error(f"Error stopping Kafka producer in error handler: {e}")
 
         except Exception as e:
             self.logger.error(f"Failed to handle download error for video_id='{video_id}': {e}")
@@ -407,3 +412,19 @@ class YouTubeDownloadService:
 
         except Exception as e:
             self.logger.warning(f"Failed to configure cookies: {e}. Proceeding without cookies.")
+
+    def cleanup(self) -> None:
+        """Clean up resources - should be called when service is shutting down"""
+        try:
+            if hasattr(self, 'kafka_producer'):
+                self.kafka_producer.stop()
+                self.logger.info("Kafka producer stopped successfully")
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+
+    def __del__(self):
+        """Destructor to ensure cleanup when object is destroyed"""
+        try:
+            self.cleanup()
+        except:
+            pass  # Don't raise exceptions in destructor

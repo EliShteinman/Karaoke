@@ -2,13 +2,14 @@
 Audio Processing Service - Main Entry Point
 
 This service listens to Kafka for audio processing requests containing only video_id,
-retrieves file paths from Elasticsearch, processes audio files to remove vocals,
-and updates Elasticsearch with the results.
+retrieves file paths from Elasticsearch, processes audio files to create dual output
+(vocals removed and vocals only), and updates Elasticsearch with the results.
 
 Architecture compliance:
 - Uses shared library for all infrastructure access
 - Receives only video_id from Kafka (no file paths)
 - Retrieves file paths from Elasticsearch
+- Uses iterative consumption model instead of callback for better code flow
 - Uses proper error handling and logging
 - Updates status in Elasticsearch with detailed progress
 - Sends completion/error events to Kafka
@@ -93,12 +94,33 @@ class AudioProcessingService:
             self.kafka_producer.start()
             logger.info("Kafka components started successfully")
 
-            # Start continuous listening - this will run forever
-            logger.info("Starting continuous message listening...")
-            processed_count = self.kafka_consumer.listen_forever(
-                message_handler=self._process_message,
-                max_messages=None  # Run forever
-            )
+            # Start continuous message consumption using iterative model with retry loop
+            logger.info("Starting continuous message consumption...")
+            processed_count = 0
+
+            while True:
+                try:
+                    logger.info("🔄 Starting new consumption cycle - listening for audio processing messages...")
+                    for message in self.kafka_consumer.consume():
+                        try:
+                            # Process each message
+                            success = self._process_message(message)
+                            if success:
+                                processed_count += 1
+                                logger.info(f"✅ Successfully processed message from '{message['topic']}' - returning to listen for more...")
+                            else:
+                                logger.warning(f"❌ Failed to process message from '{message['topic']}' - returning to listen for more...")
+
+                        except Exception as e:
+                            logger.error(f"Error processing individual message: {e}")
+                            continue
+
+                except Exception as e:
+                    logger.error(f"Consumer loop error: {e}")
+                    logger.info("Restarting consumer loop in 5 seconds...")
+                    import time
+                    time.sleep(5)
+                    continue
 
             logger.info(f"Service stopped after processing {processed_count} messages")
 
@@ -337,7 +359,7 @@ class AudioProcessingService:
                 "status": "vocals_processed",
                 "processing_time": processing_time,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "algorithm_used": "center_channel_extraction"
+                "algorithm_used": "demucs_htdemucs"
             }
 
             self.kafka_producer.send_message(self.config.kafka_topic_audio_processed, completion_message)
