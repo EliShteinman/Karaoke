@@ -69,13 +69,14 @@ class TranscriptionConsumer:
             # Continuous message processing loop with retry mechanism
             while True:
                 try:
-                    self.logger.debug("Starting new consumption cycle...")
+                    self.logger.info("🔄 Starting new consumption cycle - listening for transcription messages...")
                     for msg in self.consumer.consume():
                         try:
                             self._process_message(msg)
+                            self.logger.info("✅ Successfully processed message - returning to listen for more...")
                         except Exception as msg_error:
                             # Log individual message processing errors but continue the loop
-                            self.logger.error(f"Error processing individual message: {msg_error}")
+                            self.logger.error(f"❌ Error processing individual message: {msg_error} - returning to listen for more...")
                             self.logger.debug(f"Message processing error traceback: {traceback.format_exc()}")
                             # Continue to next message - don't break the entire consumer loop
                             continue

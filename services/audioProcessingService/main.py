@@ -100,16 +100,16 @@ class AudioProcessingService:
 
             while True:
                 try:
-                    logger.debug("Starting new consumption cycle...")
+                    logger.info("🔄 Starting new consumption cycle - listening for audio processing messages...")
                     for message in self.kafka_consumer.consume():
                         try:
                             # Process each message
                             success = self._process_message(message)
                             if success:
                                 processed_count += 1
-                                logger.debug(f"Successfully processed message from '{message['topic']}'")
+                                logger.info(f"✅ Successfully processed message from '{message['topic']}' - returning to listen for more...")
                             else:
-                                logger.warning(f"Failed to process message from '{message['topic']}'")
+                                logger.warning(f"❌ Failed to process message from '{message['topic']}' - returning to listen for more...")
 
                         except Exception as e:
                             logger.error(f"Error processing individual message: {e}")
