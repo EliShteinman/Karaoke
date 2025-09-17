@@ -1,119 +1,125 @@
 import streamlit as st
 import time
-from typing import Dict, Any
-from services.streamlitClient.api.api_client import get_song_status
+from services.streamlitClient.api.api_client import get_songs_library
 from services.streamlitClient.config import StreamlitConfig
-from services.streamlitClient.api.helpers import validate_video_id
 
 logger = StreamlitConfig.get_logger(__name__)
 
-st.set_page_config(page_title="מעקב הורדות", page_icon="⬇️")
-st.title("⬇️ מעקב אחר התקדמות ההורדות")
+st.set_page_config(page_title="הורדות ועיבוד", page_icon="⬇️")
+st.title("⬇️ שירים בתהליך עיבוד")
 
-if 'download_requests' not in st.session_state:
-    st.session_state['download_requests'] = {}
+# Refresh controls
+col1, col2 = st.columns([1, 4])
+with col1:
+    if st.button("🔄 רענן", width='stretch'):
+        st.cache_data.clear()
+        st.rerun()
 
-downloading_songs = st.session_state.get('download_requests', {})
+with col2:
+    auto_refresh = st.checkbox("רענון אוטומטי (כל 10 שניות)", value=True)
 
-logger.info(f"Downloads page loaded. Tracking {len(downloading_songs)} songs.")
+# Auto-refresh logic
+if auto_refresh:
+    # Show countdown and auto-refresh
+    placeholder = st.empty()
+    for i in range(10, 0, -1):
+        placeholder.info(f"⏱️ רענון אוטומטי פעיל - רענון תוך {i} שניות...")
+        time.sleep(1)
+    placeholder.empty()
+    st.cache_data.clear()
+    st.rerun()
 
-if not downloading_songs:
-    st.info("אין כרגע שירים בתהליך הורדה. ניתן להוסיף שירים מהדף 'חיפוש והורדה'.")
+# Fetch all songs from API
+logger.info("Fetching all songs from API to find processing ones...")
+with st.spinner("טוען שירים..."):
+    all_songs = get_songs_library()
+
+# Filter to show only processing songs (files_ready = false)
+processing_songs = [
+    song for song in all_songs
+    if not song.get('files_ready', True)  # Show songs where files are NOT ready
+]
+
+logger.info(f"Found {len(processing_songs)} processing songs out of {len(all_songs)} total songs")
+
+if not processing_songs:
+    st.info("🎉 אין כרגע שירים בתהליך עיבוד!")
+    st.markdown("כל השירים מוכנים או שאין שירים ברשימה.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔍 חפש שירים חדשים", width='stretch'):
+            st.switch_page("pages/1_🔍_חיפוש.py")
+    with col2:
+        if st.button("🎵 עבור לספרייה", width='stretch'):
+            st.switch_page("pages/3_🎵_ספריה.py")
 else:
-    st.markdown("הסטטוסים מתעדכנים אוטומטית כל 5 שניות.")
-    
-    # Create a copy of items to iterate over, to allow modification during iteration
-    for video_id, song_details in list(downloading_songs.items()):
-        try:
-            title = song_details.get('title', 'N/A')
+    st.markdown(f"**נמצאו {len(processing_songs)} שירים בתהליך עיבוד:**")
 
-            # Validate video ID
-            if not validate_video_id(video_id):
-                logger.error(f"Invalid video ID in downloads tracking: {video_id}")
-                del st.session_state['download_requests'][video_id]
-                continue
+    for song in processing_songs:
+        video_id = song.get('video_id', '')
 
-            with st.container(border=True):
-                col1, col2 = st.columns([1, 3])
-                with col1:
+        with st.container(border=True):
+            col1, col2 = st.columns([1, 3])
+
+            with col1:
+                try:
+                    if song.get('thumbnail'):
+                        st.image(song['thumbnail'], width='stretch')
+                    else:
+                        st.write("🎵")
+                except Exception as e:
+                    logger.warning(f"Error displaying thumbnail for {video_id}: {e}")
+                    st.write("🎵")
+
+            with col2:
+                st.subheader(song.get('title', 'שיר לא ידוע'))
+
+                # Basic info
+                artist = song.get('artist', 'לא ידוע')
+                duration = song.get('duration', 0)
+                duration_str = f"{duration//60}:{duration%60:02d}" if duration > 0 else "לא ידוע"
+                st.caption(f"אמן: {artist} | משך: {duration_str}")
+
+                # Display status from the song data
+                status = song.get('status', 'לא ידוע')
+                if status == 'processing':
+                    st.markdown("🔄 **סטטוס:** בתהליך עיבוד...")
+                elif status == 'queued':
+                    st.markdown("⏳ **סטטוס:** ממתין בתור")
+                elif status == 'downloading':
+                    st.markdown("📥 **סטטוס:** מוריד מיוטיוב...")
+                elif status == 'failed':
+                    st.markdown("❌ **סטטוס:** העיבוד נכשל")
+                    st.error("תהליך העיבוד נכשל. השיר לא יהיה זמין.")
+                else:
+                    st.markdown(f"ℹ️ **סטטוס:** {status}")
+
+                # Show creation time if available
+                if song.get('created_at'):
                     try:
-                        st.image(song_details.get('thumbnail'), use_column_width=True)
-                    except Exception as e:
-                        logger.warning(f"Error displaying thumbnail for {video_id}: {e}")
-                        st.write("🎵")  # Fallback icon
+                        from datetime import datetime
+                        created_time = datetime.fromisoformat(song['created_at'].replace('Z', '+00:00'))
+                        st.caption(f"התחיל: {created_time.strftime('%d/%m/%Y %H:%M')}")
+                    except:
+                        st.caption(f"התחיל: {song.get('created_at')}")
 
-                with col2:
-                    st.subheader(title)
+# Instructions
+st.markdown("---")
+st.markdown("### 💡 מידע שימושי")
+st.markdown("""
+- הדף מציג שירים שכרגע בתהליך עיבוד (מתוך endpoint `GET /songs`)
+- השירים מסוננים לפי `files_ready: false`
+- תהליך העיבוד: הורדה מיוטיוב ← עיבוד אודיו ← תמלול וכתוביות
+- זמן העיבוד הממוצע: 2-5 דקות לכל שיר
+- שירים מוכנים יעברו אוטומטית לדף [🎵 ספריה](/🎵_ספריה)
+- הדף מתרענן אוטומטית כל 10 שניות
+""")
 
-                    try:
-                        status_data: Dict[str, Any] = get_song_status(video_id)
-                    except Exception as e:
-                        logger.error(f"Error getting status for {video_id}: {e}")
-                        st.error("שגיאה בקבלת סטטוס מהשרת")
-                        continue
-
-                    if not status_data or 'overall_status' not in status_data:
-                        logger.warning(f"Waiting for status from server for song: '{title}' (video_id: {video_id})")
-                        st.warning("ממתין לקבלת סטטוס מהשרת...")
-                        continue
-
-                    overall_status = status_data.get('overall_status', 'לא ידוע')
-                    logger.info(f"Displaying status for '{title}': {overall_status}")
-
-                    # Overall Progress
-                    try:
-                        progress = int(status_data.get('progress', 0))
-                        progress = max(0, min(100, progress))  # Clamp between 0-100
-                        st.progress(progress / 100, text=f"**סטטוס כללי:** {overall_status}")
-                    except (ValueError, TypeError) as e:
-                        logger.warning(f"Invalid progress value for {video_id}: {e}")
-                        st.text(f"**סטטוס כללי:** {overall_status}")
-
-                    # Detailed Stage Status
-                    stages = {
-                        "download": "הורדה מיוטיוב",
-                        "audio_processing": "עיבוד אודיו (הפרדת ערוצים)",
-                        "transcription": "תמלול ויצירת כתוביות"
-                    }
-
-                    stages_data = status_data.get('stages', {})
-                    if isinstance(stages_data, dict):
-                        for stage_key, stage_name in stages.items():
-                            stage_status = stages_data.get(stage_key, "PENDING")
-                            if stage_status == "COMPLETED":
-                                st.markdown(f"- ✅ {stage_name}")
-                            elif stage_status == "IN_PROGRESS":
-                                st.markdown(f"- 🔄 {stage_name} (בתהליך...)")
-                            elif stage_status == "FAILED":
-                                st.markdown(f"- ❌ {stage_name} (נכשל)")
-                            else:  # PENDING
-                                st.markdown(f"- ⏳ {stage_name} (ממתין)")
-
-                    # Handle completion or failure
-                    if overall_status == "✅ מוכן לנגינה":
-                        logger.info(f"Song '{title}' (video_id: {video_id}) is ready. Removing from tracking.")
-                        st.success("השיר מוכן וזמין בספרייה!", icon="🎉")
-                        # Remove from active downloads
-                        del st.session_state['download_requests'][video_id]
-
-                    elif overall_status == "❌ נכשל":
-                        logger.error(f"Processing failed for song '{title}' (video_id: {video_id}). Removing from tracking.")
-                        st.error("תהליך העיבוד נכשל. נסה להוריד שיר אחר.", icon="🔥")
-                        # Remove from active downloads
-                        del st.session_state['download_requests'][video_id]
-
-        except Exception as e:
-            logger.error(f"Error processing download status for {video_id}: {e}")
-            try:
-                # Try to remove problematic entry
-                del st.session_state['download_requests'][video_id]
-                logger.info(f"Removed problematic download entry: {video_id}")
-            except KeyError:
-                pass
-
-    # Manual refresh logic
-    if st.session_state.get('download_requests', {}):
-        refresh_placeholder = st.empty()
-        if refresh_placeholder.button("רענן סטטוסי הורדה"):
-            logger.info("User manually refreshed download statuses.")
-            st.rerun()
+# Debug info
+if st.checkbox("🔧 מידע דיבוג"):
+    st.json({
+        "total_songs_from_api": len(all_songs),
+        "processing_songs_count": len(processing_songs),
+        "processing_songs": processing_songs
+    })

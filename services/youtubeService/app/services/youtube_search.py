@@ -36,6 +36,7 @@ class YouTubeSearchService:
 
             results = []
             for item in response.get("items", []):
+                video_id = "unknown"  # Initialize with default value
                 try:
                     video_id = item["id"]["videoId"]
                     snippet = item["snippet"]

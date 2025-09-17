@@ -7,14 +7,19 @@ logger = StreamlitConfig.get_logger(__name__)
 
 def show_youtube_player(video_id: str) -> None:
     """
-    Embeds a YouTube player in the Streamlit app.
+    Embeds a YouTube player in the Streamlit app using modern st.video component.
 
     Args:
         video_id: YouTube video ID
     """
     try:
+        if not validate_video_id(video_id):
+            st.error("מזהה וידאו יוטיוב לא תקין")
+            return
+
         logger.info(f"Displaying YouTube player for video_id: {video_id}")
-        st.video(f"https://www.youtube.com/watch?v={video_id}")
+        youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+        st.video(youtube_url, format="video/mp4", start_time=0)
     except Exception as e:
         logger.error(f"Error displaying YouTube player for video_id {video_id}: {e}")
         st.error(f"שגיאה בהצגת נגן יוטיוב: {e}")
@@ -59,16 +64,22 @@ def format_file_size(size_bytes: int) -> str:
         Formatted size string (e.g., "1.5 MB", "500 KB")
     """
     try:
-        if not isinstance(size_bytes, int) or size_bytes < 0:
+        if not isinstance(size_bytes, (int, float)) or size_bytes < 0:
             logger.warning(f"Invalid file size: {size_bytes}")
             return "0 B"
 
-        for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes == 0:
+            return "0 B"
+
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size_bytes < 1024:
-                return f"{size_bytes:.1f} {unit}"
+                if unit == 'B':
+                    return f"{int(size_bytes)} {unit}"
+                else:
+                    return f"{size_bytes:.1f} {unit}"
             size_bytes /= 1024
 
-        return f"{size_bytes:.1f} TB"
+        return f"{size_bytes:.1f} PB"
 
     except Exception as e:
         logger.error(f"Error formatting file size: {e}")

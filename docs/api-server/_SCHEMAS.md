@@ -129,7 +129,7 @@ class DownloadResponse(BaseModel):
 **Status Code:** `200 OK`
 **Content-Type:** `application/json`
 
-**מבנה תגובה (מחושבת מ-Elasticsearch):**
+**מבנה תגובה מעודכן (כל השירים עם התקדמות):**
 ```json
 {
   "songs": [
@@ -137,18 +137,52 @@ class DownloadResponse(BaseModel):
       "video_id": "dQw4w9WgXcQ",
       "title": "Rick Astley - Never Gonna Give You Up",
       "artist": "Rick Astley",
-      "status": "processing",
+      "status": "ready",
       "created_at": "2025-09-15T10:30:00Z",
       "thumbnail": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
       "duration": 213,
+      "progress": {
+        "download": true,
+        "audio_processing": true,
+        "transcription": true,
+        "files_ready": true
+      },
       "files_ready": true
+    },
+    {
+      "video_id": "abc123def",
+      "title": "Example Song - Still Processing",
+      "artist": "Example Artist",
+      "status": "processing",
+      "created_at": "2025-09-15T11:00:00Z",
+      "thumbnail": "https://img.youtube.com/vi/abc123def/maxresdefault.jpg",
+      "duration": 180,
+      "progress": {
+        "download": true,
+        "audio_processing": true,
+        "transcription": false,
+        "files_ready": false
+      },
+      "files_ready": false
     }
   ]
 }
 ```
 
-**סכמת Pydantic:**
+**התנהגות מעודכנת:**
+- מחזיר את **כל השירים** במערכת (לא רק מוכנים)
+- כל שיר כולל את ה-`progress` object המפורט
+- שדה `files_ready` נשמר לתאימות לאחור
+- מאפשר לסקירה מאוחדת של כל המצבים
+
+**סכמת Pydantic מעודכנת:**
 ```python
+class Progress(BaseModel):
+    download: bool
+    audio_processing: bool
+    transcription: bool
+    files_ready: bool
+
 class SongListItem(BaseModel):
     video_id: str
     title: str
@@ -157,6 +191,7 @@ class SongListItem(BaseModel):
     created_at: datetime
     thumbnail: HttpUrl
     duration: int
+    progress: Progress
     files_ready: bool
 
 class SongsResponse(BaseModel):
@@ -229,26 +264,18 @@ class StatusResponse(BaseModel):
 
 ## קריאות מ-Elasticsearch (קריאה בלבד)
 
-### שאילתת שירים מוכנים
+### שאילתת כל השירים (מעודכן)
 **פעולה:** `POST /songs/_search`
 
-**שאילתה:**
+**שאילתה מעודכנת (כל השירים):**
 ```json
 {
-  "query": {
-    "bool": {
-      "must": [
-        {"exists": {"field": "file_paths.vocals_removed"}},
-        {"exists": {"field": "file_paths.lyrics"}},
-        {"bool": {"must_not": [
-          {"term": {"file_paths.vocals_removed": ""}},
-          {"term": {"file_paths.lyrics": ""}}
-        ]}}
-      ]
-    }
-  }
+  "query": {"match_all": {}},
+  "sort": [{"created_at": {"order": "desc"}}]
 }
 ```
+
+**הערה:** השינוי מ"רק שירים מוכנים" ל"כל השירים" מאפשר תצוגה מאוחדת של כל הסטטוסים.
 
 ### שליפת מסמך שיר ספציפי
 **פעולה:** `GET /songs/_doc/{video_id}`

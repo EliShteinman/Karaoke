@@ -1,5 +1,6 @@
 import yt_dlp
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Optional
 from pathlib import Path
@@ -40,6 +41,67 @@ class YouTubeDownloadService:
         self.file_manager = create_file_manager(storage_type="volume", base_path=str(self.base_path))
 
         self.logger.info("YouTubeDownloadService initialized with shared services")
+
+    def start_download_async(
+        self,
+        video_id: str,
+        title: str,
+        channel: str,
+        duration: int,
+        thumbnail: str
+    ) -> None:
+        """
+        Start the download process in background thread.
+        This method validates the request and starts the download asynchronously.
+        """
+        self.logger.info(f"Starting async download for video_id='{video_id}'")
+
+        # Basic validation (video_id should be non-empty)
+        if not video_id or not video_id.strip():
+            raise ValueError("video_id cannot be empty")
+
+        # Start download in background thread
+        download_thread = threading.Thread(
+            target=self._download_workflow,
+            args=(video_id, title, channel, duration, thumbnail),
+            daemon=True
+        )
+        download_thread.start()
+
+        self.logger.info(f"Download thread started for video_id='{video_id}'")
+
+    def _download_workflow(
+        self,
+        video_id: str,
+        title: str,
+        channel: str,
+        duration: int,
+        thumbnail: str
+    ) -> None:
+        """
+        Internal method to run the complete download workflow in background.
+        This is called by the background thread.
+        """
+        self.logger.info(f"Starting background download workflow for video_id='{video_id}'")
+
+        try:
+            # Step 1: Create initial Elasticsearch document
+            self._create_initial_document(video_id, title, channel, duration, thumbnail)
+
+            # Step 2: Download the file
+            file_path = self._download_file(video_id)
+
+            # Step 3: Update Elasticsearch with file path and metadata
+            self._update_document_after_download(video_id, file_path)
+
+            # Step 4: Send Kafka messages
+            self._send_kafka_messages(video_id, file_path, duration)
+
+            self.logger.info(f"Background download workflow completed successfully for video_id='{video_id}'")
+
+        except Exception as e:
+            self.logger.error(f"Background download workflow failed for video_id='{video_id}': {e}")
+            self._handle_download_error(video_id, str(e))
 
     def download(
         self,

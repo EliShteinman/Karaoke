@@ -108,6 +108,25 @@ class SongRepository:
 
         return results
 
+    async def get_all_songs(self) -> List[Dict]:
+        """
+        Get all songs from the repository regardless of status.
+
+        Returns:
+            List[Dict]: List of all song documents with video_id included
+        """
+        search_params = {
+            "sort": [{"created_at": {"order": "desc"}}]  # Sort by newest first
+        }
+
+        results = []
+        async for hit in self.es.stream_all_documents(**search_params):
+            song = hit["_source"]
+            song["video_id"] = hit["_id"]
+            results.append(song)
+
+        return results
+
     async def get_songs_by_status(self, status: str) -> List[Dict]:
         """Get songs by status"""
         search_params = {"term_filters": {"status": status}}

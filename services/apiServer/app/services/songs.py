@@ -35,17 +35,25 @@ def _calculate_progress(song_doc: Dict[str, Any]) -> schemas.Progress:
 # --- SERVICE FUNCTIONS ---
 
 async def get_all_songs() -> schemas.SongsResponse:
-    """Fetches all available songs from the data source."""
+    """
+    Fetches all songs from the data source with progress information.
+
+    Returns:
+        schemas.SongsResponse: Response containing all songs (ready, processing, failed) with progress
+    """
     song_repo = None
     try:
         logger.info("Service: Getting song repository from factory.")
         song_repo = RepositoryFactory.create_song_repository_from_config(settings, async_mode=True)
-        logger.info("Service: Fetching all ready songs from repository.")
-        ready_songs_docs = await song_repo.get_ready_songs()
+        logger.info("Service: Fetching all songs from repository (ready, processing, failed).")
+        all_songs_docs = await song_repo.get_all_songs()
 
         song_list: List[schemas.SongListItem] = []
-        for doc in ready_songs_docs:
+        for doc in all_songs_docs:
             try:
+                # Calculate progress for each song
+                progress = _calculate_progress(doc)
+
                 song_item = schemas.SongListItem(
                     video_id=doc.get("video_id", ""),
                     title=doc.get("title", ""),
@@ -54,7 +62,8 @@ async def get_all_songs() -> schemas.SongsResponse:
                     created_at=doc.get("created_at"),
                     thumbnail=doc.get("thumbnail", ""),
                     duration=doc.get("duration", 0),
-                    files_ready=_is_song_ready(doc)
+                    progress=progress,
+                    files_ready=progress.files_ready  # Use calculated progress for consistency
                 )
                 song_list.append(song_item)
             except (KeyError, ValueError, TypeError) as song_error:
@@ -64,7 +73,7 @@ async def get_all_songs() -> schemas.SongsResponse:
                 logger.error(f"Service: Unexpected error processing song document {doc.get('video_id', 'unknown')}: {song_error}")
                 continue
 
-        logger.info(f"Service: Found {len(song_list)} ready songs.")
+        logger.info(f"Service: Found {len(song_list)} songs total (all statuses).")
         return schemas.SongsResponse(songs=song_list)
     except ConnectionError as e:
         logger.error(f"Service: Failed to connect to Elasticsearch while getting all songs. Error: {e}")

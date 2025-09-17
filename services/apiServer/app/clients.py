@@ -8,7 +8,7 @@ logger = Logger.get_logger(name="api-server-clients")
 # YouTube Service HTTP Client
 youtube_service_client: httpx.AsyncClient = httpx.AsyncClient(
     base_url=settings.youtube_service_url,
-    timeout=30.0
+    timeout=10.0  # Quick timeout - we expect immediate 202 response
 )
 
 

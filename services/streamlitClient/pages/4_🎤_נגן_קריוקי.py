@@ -109,7 +109,7 @@ with main_cols[0]:
         with st.container(border=True):
             # Display thumbnail
             try:
-                st.image(song.get('thumbnail'), use_column_width=True)
+                st.image(song.get('thumbnail'), use_container_width=True)
             except Exception as e:
                 logger.warning(f"Error displaying thumbnail for {video_id}: {e}")
                 st.write("🎵")  # Fallback icon

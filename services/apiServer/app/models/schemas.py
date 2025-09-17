@@ -37,6 +37,13 @@ class DownloadResponse(BaseModel):
     video_id: str
     message: str
 
+class Progress(BaseModel):
+    """Schema representing the processing progress of a song."""
+    download: bool
+    audio_processing: bool
+    transcription: bool
+    files_ready: bool
+
 class SongListItem(BaseModel):
     """Schema for a single song item in the list of all songs."""
     video_id: str
@@ -46,18 +53,12 @@ class SongListItem(BaseModel):
     created_at: datetime
     thumbnail: HttpUrl
     duration: int
+    progress: Progress
     files_ready: bool
 
 class SongsResponse(BaseModel):
     """Schema for the response containing the list of all songs."""
     songs: List[SongListItem]
-
-class Progress(BaseModel):
-    """Schema representing the processing progress of a song."""
-    download: bool
-    audio_processing: bool
-    transcription: bool
-    files_ready: bool
 
 class StatusResponse(BaseModel):
     """Schema for the response when checking a song's status."""

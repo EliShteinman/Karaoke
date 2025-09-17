@@ -10,8 +10,10 @@ st.title("🔍 חיפוש והורדת שירים")
 # Initialize session state variables
 if 'search_results' not in st.session_state:
     st.session_state['search_results'] = []
-if 'download_requests' not in st.session_state:
-    st.session_state['download_requests'] = {}
+if 'last_search_query' not in st.session_state:
+    st.session_state['last_search_query'] = ''
+if 'downloading_songs' not in st.session_state:
+    st.session_state.downloading_songs = {}
 
 # --- Search Form ---
 with st.form(key="search_form"):
@@ -22,10 +24,14 @@ if submit_button and query:
     logger.info(f"User searched for: '{query}'")
     with st.spinner("מחפש, אנא המתן..."):
         results = search(query)
+        logger.debug(f"Search results: {results}")
         st.session_state['search_results'] = results
+        st.session_state['last_search_query'] = query
         if not results:
             logger.info(f"No search results found for query: '{query}'")
             st.info("לא נמצאו תוצאות עבור החיפוש שלך.")
+        else:
+            st.success(f"נמצאו {len(results)} תוצאות עבור '{query}'")
 
 # --- Results Display ---
 if st.session_state['search_results']:
@@ -38,7 +44,7 @@ if st.session_state['search_results']:
         col = cols[i % 3]
         with col:
             with st.container(border=True):
-                st.image(song.get('thumbnail'), use_column_width=True)
+                st.image(song.get('thumbnail'), width='stretch')
                 st.markdown(f"**{song['title']}**")
                 st.caption(f"ערוץ: {song['channel']} | משך: {int(song['duration'] // 60)}:{(song['duration'] % 60):02d}")
 
@@ -47,7 +53,7 @@ if st.session_state['search_results']:
                 if not validate_video_id(video_id):
                     logger.error(f"Invalid video ID format: {video_id}")
                     st.error("מזהה הוידאו אינו תקין")
-                elif video_id in st.session_state.get('download_requests', {}):
+                elif False:  # Remove local tracking - let API handle this
                     st.button("הורדה התחילה ✅", key=f"download_{video_id}", disabled=True)
                 else:
                     if st.button("הורד שיר זה ⬇️", key=f"download_{video_id}"):
@@ -55,15 +61,21 @@ if st.session_state['search_results']:
                         try:
                             with st.spinner("שולח בקשת הורדה..."):
                                 response = download_song(song)
-                                if response and response.get('status') == 'queued':
+                                if response and response.get('status') == 'accepted':
                                     logger.info(f"Successfully queued download for song: '{song['title']}'")
-                                    st.success(f"השיר '{song['title']}' נוסף לתור ההורדות!")
-                                    # Add to session state for tracking on the downloads page
-                                    st.session_state['download_requests'][video_id] = song
-                                    st.rerun()
+                                    st.success(f"✅ השיר '{song['title']}' נוסף לתור ההורדות!")
+                                    st.info("💡 ניתן לעקוב אחר התקדמות העיבוד בדף 'הורדות'")
+                                    # Add song to downloading_songs for tracking
+                                    st.session_state.downloading_songs[video_id] = song
+                                    logger.debug(f"Added song {video_id} to downloading_songs tracking")
+                                    # Clear cache to reflect new download
+                                    st.cache_data.clear()
+                                    # Small delay to show success message
+                                    import time
+                                    time.sleep(1.5)
                                 else:
                                     logger.error(f"Failed to queue download for song: '{song['title']}'. Response: {response}")
-                                    st.error("ההורדה נכשלה. נסה שוב או בחר שיר אחר.")
+                                    st.error("❌ ההורדה נכשלה. נסה שוב או בחר שיר אחר.")
                         except Exception as e:
                             logger.error(f"Unexpected error during download request: {e}")
                             st.error("שגיאה לא צפויה בבקשת ההורדה")

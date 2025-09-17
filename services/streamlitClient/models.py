@@ -35,43 +35,42 @@ class DownloadRequest(BaseModel):
 
 class DownloadResponse(BaseModel):
     """Schema for download response from API Server"""
-    status: str = Field(..., description="Download status (queued, processing, completed, failed)")
-    message: Optional[str] = Field(None, description="Status message")
+    status: str = Field(..., description="Download status (accepted)")
+    message: str = Field(..., description="Status message")
     video_id: str = Field(..., description="YouTube video ID")
 
 
-class SongStatusStage(BaseModel):
-    """Schema for individual processing stage status"""
-    download: str = Field(default="PENDING", description="Download stage status")
-    audio_processing: str = Field(default="PENDING", description="Audio processing stage status")
-    transcription: str = Field(default="PENDING", description="Transcription stage status")
+class Progress(BaseModel):
+    """Schema for processing progress from API Server"""
+    download: bool = Field(default=False, description="Download stage completed")
+    audio_processing: bool = Field(default=False, description="Audio processing stage completed")
+    transcription: bool = Field(default=False, description="Transcription stage completed")
+    files_ready: bool = Field(default=False, description="Files ready for download")
 
 
 class SongStatus(BaseModel):
     """Schema for song processing status response"""
     video_id: str = Field(..., description="YouTube video ID")
-    overall_status: str = Field(..., description="Overall processing status")
-    progress: int = Field(default=0, description="Progress percentage (0-100)")
-    stages: SongStatusStage = Field(default_factory=SongStatusStage, description="Individual stage statuses")
-    estimated_time: Optional[str] = Field(None, description="Estimated time remaining")
+    status: str = Field(..., description="Overall processing status")
+    progress: Progress = Field(..., description="Processing progress details")
 
 
-class LibrarySong(BaseModel):
+class SongListItem(BaseModel):
     """Schema for songs in the library"""
     video_id: str = Field(..., description="YouTube video ID")
     title: str = Field(..., description="Song title")
-    artist: str = Field(default="", description="Artist name")
-    channel: str = Field(default="", description="YouTube channel name")
-    duration: int = Field(default=0, description="Duration in seconds")
-    thumbnail: str = Field(default="", description="Thumbnail URL")
-    created_date: Optional[str] = Field(None, description="Creation date")
-    file_paths: Dict[str, str] = Field(default_factory=dict, description="File paths for song assets")
+    artist: str = Field(..., description="Artist name")
+    status: str = Field(..., description="Song processing status")
+    created_at: str = Field(..., description="Creation datetime")
+    thumbnail: str = Field(..., description="Thumbnail URL")
+    duration: int = Field(..., description="Duration in seconds")
+    progress: Progress = Field(..., description="Processing progress details")
+    files_ready: bool = Field(..., description="Whether files are ready for download")
 
 
-class LibraryResponse(BaseModel):
-    """Schema for library response from API Server"""
-    songs: List[LibrarySong] = Field(default_factory=list, description="List of ready songs")
-    total: int = Field(default=0, description="Total number of songs")
+class SongsResponse(BaseModel):
+    """Schema for songs response from API Server"""
+    songs: List[SongListItem] = Field(default_factory=list, description="List of songs")
 
 
 class LrcLine(BaseModel):
@@ -87,9 +86,8 @@ class SessionState(BaseModel):
     current_page: str = Field(default="search", description="Current active page")
     search_query: str = Field(default="", description="Last search query")
     search_results: List[SearchResult] = Field(default_factory=list, description="Current search results")
-    download_requests: Dict[str, SearchResult] = Field(default_factory=dict, description="Active download tracking")
-    library_songs: List[LibrarySong] = Field(default_factory=list, description="Cached library songs")
-    song_to_play: Optional[LibrarySong] = Field(None, description="Currently selected song for playback")
+    library_songs: List[SongListItem] = Field(default_factory=list, description="Cached library songs")
+    song_to_play: Optional[SongListItem] = Field(None, description="Currently selected song for playback")
 
     class Config:
         arbitrary_types_allowed = True

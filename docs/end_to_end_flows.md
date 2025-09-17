@@ -125,30 +125,25 @@
 ### שלב 5: זיהוי השלמת עיבוד
 **Streamlit Client**: כאשר `files_ready: true`, מציג למשתמש אפשרות להוריד את קבצי הקריוקי.
 
-### שלב 6: בקשת רשימת שירים מוכנים
-**Streamlit Client**: שולח `GET /songs` ל-**API Server** לקבלת רשימת כל השירים המוכנים.
+### שלב 6: בקשת רשימת כל השירים (מעודכן)
+**Streamlit Client**: שולח `GET /songs` ל-**API Server** לקבלת רשימת **כל השירים** (מוכנים + בעיבוד + כושלים).
 
-### שלב 7: שאילתה לשירים מוכנים
-**API Server**: מבצע שאילתה מתקדמת ל-**Elasticsearch** `POST /songs/_search` עם תנאים:
+### שלב 7: שאילתה לכל השירים (מעודכן)
+**API Server**: מבצע שאילתה ל-**Elasticsearch** `POST /songs/_search` עם שאילתה פשוטה:
 ```json
 {
-  "query": {
-    "bool": {
-      "must": [
-        {"exists": {"field": "file_paths.vocals_removed"}},
-        {"exists": {"field": "file_paths.lyrics"}},
-        {"bool": {"must_not": [
-          {"term": {"file_paths.vocals_removed": ""}},
-          {"term": {"file_paths.lyrics": ""}}
-        ]}}
-      ]
-    }
-  }
+  "query": {"match_all": {}},
+  "sort": [{"created_at": {"order": "desc"}}]
 }
 ```
 
-### שלב 8: החזרת רשימת שירים מוכנים
-**API Server**: מחזיר ל-**Streamlit Client** רשימה של שירים עם `files_ready: true`.
+### שלב 8: חישוב progress לכל שיר ו-החזרת הרשימה המעודכנת
+**API Server**:
+1. עבור כל שיר מחשב את ה-`progress` object על בסיס `file_paths`
+2. מחזיר ל-**Streamlit Client** רשימה מלאה של שירים עם:
+   - כל המידע הקיים
+   - `progress` object מחושב
+   - `files_ready` (לתאימות לאחור)
 
 ### שלב 9: בקשת הורדת קבצי קריוקי
 **Streamlit Client**: שולח `GET /songs/{video_id}/download` ל-**API Server** לשיר ספציפי.

@@ -16,6 +16,7 @@ router = APIRouter()
 async def search_youtube(search_request: schemas.SearchRequest) -> schemas.SearchResponse:
     """Endpoint to search for songs. Forwards the request to the YouTube service."""
     logger.info(f"Router: Received search request for query: '{search_request.query}'")
+    logger.debug(f"Router: Search request payload: {search_request.model_dump(mode='json')}")
     try:
         logger.info(f"Router: Forwarding search request to YouTube Service for query: '{search_request.query}'")
         response = await youtube_service_client.post("/search", json=search_request.model_dump(mode='json'))
