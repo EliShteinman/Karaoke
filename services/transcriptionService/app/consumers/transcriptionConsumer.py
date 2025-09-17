@@ -66,15 +66,25 @@ class TranscriptionConsumer:
             self.producer.start()
             self.logger.info(f"Listening to topic: '{self.config.kafka_topic_transcription_requested}'")
 
-            # Continuous message processing loop
-            for msg in self.consumer.consume():
+            # Continuous message processing loop with retry mechanism
+            while True:
                 try:
-                    self._process_message(msg)
-                except Exception as msg_error:
-                    # Log individual message processing errors but continue the loop
-                    self.logger.error(f"Error processing individual message: {msg_error}")
-                    self.logger.debug(f"Message processing error traceback: {traceback.format_exc()}")
-                    # Continue to next message - don't break the entire consumer loop
+                    self.logger.debug("Starting new consumption cycle...")
+                    for msg in self.consumer.consume():
+                        try:
+                            self._process_message(msg)
+                        except Exception as msg_error:
+                            # Log individual message processing errors but continue the loop
+                            self.logger.error(f"Error processing individual message: {msg_error}")
+                            self.logger.debug(f"Message processing error traceback: {traceback.format_exc()}")
+                            # Continue to next message - don't break the entire consumer loop
+                            continue
+
+                except Exception as e:
+                    self.logger.error(f"Consumer loop error: {e}")
+                    self.logger.info("Restarting consumer loop in 5 seconds...")
+                    import time
+                    time.sleep(5)
                     continue
 
         except KeyboardInterrupt:

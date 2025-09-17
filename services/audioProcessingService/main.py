@@ -94,22 +94,32 @@ class AudioProcessingService:
             self.kafka_producer.start()
             logger.info("Kafka components started successfully")
 
-            # Start continuous message consumption using iterative model
+            # Start continuous message consumption using iterative model with retry loop
             logger.info("Starting continuous message consumption...")
             processed_count = 0
 
-            for message in self.kafka_consumer.consume():
+            while True:
                 try:
-                    # Process each message
-                    success = self._process_message(message)
-                    if success:
-                        processed_count += 1
-                        logger.debug(f"Successfully processed message from '{message['topic']}'")
-                    else:
-                        logger.warning(f"Failed to process message from '{message['topic']}'")
+                    logger.debug("Starting new consumption cycle...")
+                    for message in self.kafka_consumer.consume():
+                        try:
+                            # Process each message
+                            success = self._process_message(message)
+                            if success:
+                                processed_count += 1
+                                logger.debug(f"Successfully processed message from '{message['topic']}'")
+                            else:
+                                logger.warning(f"Failed to process message from '{message['topic']}'")
+
+                        except Exception as e:
+                            logger.error(f"Error processing individual message: {e}")
+                            continue
 
                 except Exception as e:
-                    logger.error(f"Error processing individual message: {e}")
+                    logger.error(f"Consumer loop error: {e}")
+                    logger.info("Restarting consumer loop in 5 seconds...")
+                    import time
+                    time.sleep(5)
                     continue
 
             logger.info(f"Service stopped after processing {processed_count} messages")
