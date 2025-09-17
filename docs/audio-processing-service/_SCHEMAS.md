@@ -65,7 +65,7 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
 
 ### קבצים למערכת הקבצים
 
-#### קובץ האודיו ללא ווקאל
+#### קובץ האודיו ללא ווקאל (כלי נגינה בלבד)
 **נתיב קבוע:** `/shared/audio/{video_id}/vocals_removed.wav`
 **פורמט:** WAV, 44.1kHz, stereo (ללא ווקאל)
 **דוגמה:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.wav`
@@ -75,7 +75,19 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
 - ערוצים: 2 (stereo)
 - עומק סיביות: 16-bit
 - איכות: 128kbps WAV
-- עיבוד: הסרת ווקאל באמצעות Center Channel Extraction
+- עיבוד: הסרת ווקאל באמצעות Demucs ML
+
+#### קובץ השירה בלבד (ווקאל בלבד)
+**נתיב קבוע:** `/shared/audio/{video_id}/vocals.wav`
+**פורמט:** WAV, 44.1kHz, stereo (ווקאל בלבד)
+**דוגמה:** `/shared/audio/dQw4w9WgXcQ/vocals.wav`
+
+**מאפייני קובץ הפלט:**
+- קצב דגימה: 44,100 Hz (זהה למקור)
+- ערוצים: 2 (stereo)
+- עומק סיביות: 16-bit
+- איכות: 128kbps WAV
+- עיבוד: הפרדת ווקאל באמצעות Demucs ML
 
 ### עדכונים ל-Elasticsearch
 
@@ -88,13 +100,15 @@ Audio Processing Service אחראי על הסרת הווקאל מקבצי האו
   "doc": {
     "status.audio_processing": "completed",
     "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav",
+    "file_paths.vocals": "/shared/audio/dQw4w9WgXcQ/vocals.wav",
     "updated_at": "2025-09-15T10:33:45Z",
     "processing_metadata.audio": {
       "processing_time": 45.2,
       "quality_score": 0.85,
-      "algorithm": "center_channel_extraction",
+      "algorithm": "demucs_htdemucs",
       "original_size": 3456789,
-      "processed_size": 3123456
+      "vocals_removed_size": 3123456,
+      "vocals_size": 2987654
     }
   }
 }
@@ -152,14 +166,17 @@ GET /songs/_doc/dQw4w9WgXcQ
 
 ### 3. עיבוד הקובץ
 **קלט:** `/shared/audio/dQw4w9WgXcQ/original.wav`
-**עיבוד:** Center Channel Extraction
-**פלט:** `/shared/audio/dQw4w9WgXcQ/vocals_removed.wav`
+**עיבוד:** Demucs ML Audio Separation
+**פלט כפול:**
+- `/shared/audio/dQw4w9WgXcQ/vocals_removed.wav` (כלי נגינה)
+- `/shared/audio/dQw4w9WgXcQ/vocals.wav` (ווקאל)
 
 ### 4. עדכון Elasticsearch
 ```json
 {
   "doc": {
-    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav"
+    "file_paths.vocals_removed": "/shared/audio/dQw4w9WgXcQ/vocals_removed.wav",
+    "file_paths.vocals": "/shared/audio/dQw4w9WgXcQ/vocals.wav"
   }
 }
 ```

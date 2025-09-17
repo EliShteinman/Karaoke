@@ -1,7 +1,7 @@
 # Audio Processing Service - משימות והסבר
 
 ## תפקיד הסרוביס
-מבצע הסרת ווקאל מקבצי האודיו המקוריים על בסיס video_id שמתקבל מ-Kafka.
+מבצע הפרדת אודיו לשני קבצים נפרדים: קובץ ללא ווקאל (כלי נגינה) וקובץ עם ווקאל בלבד, על בסיס video_id שמתקבל מ-Kafka.
 
 ## תזרים עבודה מפורט (Workflow)
 
@@ -20,22 +20,24 @@
 2. **בדיקת תקינות** הקובץ (פורמט, איכות, משך)
 3. **טעינת הקובץ** לזיכרון לעיבוד
 
-### 4. הסרת ווקאל
+### 4. הפרדת אודיו עם Demucs
 1. **עדכון תחילת עיבוד:** `status.audio_processing: "in_progress"`
-2. **ניתוח ספקטרלי** של הקובץ לזיהוי תדרי ווקאל
-3. **הפרדת ערוצים** (Left/Right) וזיהוי המרכז הסטריאו
-4. **יישום אלגוריתם Center Channel Extraction:**
-   - חיסור הערוץ הימני מהשמאלי
-   - פילטור תדרים גבוהים (ווקאל)
-   - שמירה על כלי נגינה בתדרים נמוכים
-5. **נורמליזציה** של הקובץ המעובד
-6. **הערכת איכות** התוצר (Quality Score)
+2. **הפעלת Demucs ML model** להפרדת רכיבי האודיו
+3. **קבלת 4 רכיבים נפרדים:** vocals, drums, bass, other
+4. **יצירת שני קבצי פלט:**
+   - איחוד drums + bass + other → `vocals_removed.wav` (כלי נגינה)
+   - שמירת vocals → `vocals.wav` (ווקאל בלבד)
+5. **נורמליזציה** של שני הקבצים
+6. **הערכת איכות** התוצרים (Quality Score)
 
-### 5. שמירה ועדכון
-1. **שומר את התוצר** בנתיב `shared/audio/{video_id}/vocals_removed.wav`
+### 5. שמירה ועדכון כפול
+1. **שומר שני קבצי פלט:**
+   - `shared/audio/{video_id}/vocals_removed.wav` (כלי נגינה)
+   - `shared/audio/{video_id}/vocals.wav` (ווקאל)
 2. **מעדכן את מסמך השיר** ב-Elasticsearch:
    - `status.audio_processing: "completed"`
-   - הנתיב החדש והמטאדאטה
+   - `file_paths.vocals_removed` וגם `file_paths.vocals`
+   - מטאדאטה על שני הקבצים
 3. **שולח אירוע סיום** לטופיק `audio.vocals_processed` (ללא נתיבים!)
 
 ## תקשורת עם שירותים אחרים
@@ -47,12 +49,14 @@
 
 ### עם Elasticsearch
 - **קורא:** נתיב הקובץ המקורי (`file_paths.original`) לפי video_id
-- **מעדכן:** שדה `file_paths.vocals_removed` במסמך השיר
-- **מעדכן:** שדות `processing_metadata.audio` עם נתוני עיבוד
+- **מעדכן:** שדות `file_paths.vocals_removed` ו-`file_paths.vocals` במסמך השיר
+- **מעדכן:** שדות `processing_metadata.audio` עם נתוני עיבוד של שני הקבצים
 
 ### עם Shared Storage
 - **קורא:** קבצי אודיו מקוריים לפי הנתיב שנשלף מ-Elasticsearch
-- **כותב:** קבצי אודיו מעובדים לנתיב `/shared/audio/{video_id}/vocals_removed.wav`
+- **כותב:** שני קבצי אודיו מעובדים:
+  - `/shared/audio/{video_id}/vocals_removed.wav` (כלי נגינה)
+  - `/shared/audio/{video_id}/vocals.wav` (ווקאל)
 
 ### עם Audio Processing Libraries
 - **משתמש:** librosa לניתוח אודיו ועיבוד ספקטרלי
@@ -234,31 +238,39 @@ audio-processing-service/
 - **נתיבי קבצים נשלפים תמיד מ-Elasticsearch**
 - זה מבטיח שרק Elasticsearch הוא מקור האמת לנתיבים
 
-### זרימת עבודה נכונה
+### זרימת עבודה נכונה עם פלט כפול
 1. **Kafka:** קבלת video_id בלבד
 2. **Elasticsearch:** שליפת `file_paths.original`
 3. **File System:** קריאת קובץ לפי הנתיב הנשלף
-4. **Processing:** יצירת קובץ מעובד עם שם קבוע
-5. **Elasticsearch:** עדכון `file_paths.vocals_removed`
+4. **Processing:** יצירת שני קבצי פלט עם שמות קבועים
+5. **Elasticsearch:** עדכון `file_paths.vocals_removed` ו-`file_paths.vocals`
 6. **Kafka:** דיווח סיום (ללא נתיבים)
 
-### דוגמה לקוד נכון
+### דוגמה לקוד נכון עם פלט כפול
 ```python
-# ✅ נכון - שליפת נתיב מ-Elasticsearch
+# ✅ נכון - שליפת נתיב מ-Elasticsearch והפרדה לשני קבצים
 def process_audio(video_id: str):
     # שלב 1: שליפת נתיב מ-Elasticsearch
     doc = elasticsearch.get(index="songs", id=video_id)
     original_path = doc["_source"]["file_paths"]["original"]
 
-    # שלב 2: עיבוד הקובץ
+    # שלב 2: עיבוד הקובץ - יצירת שני קבצים
     vocals_removed_path = f"/shared/audio/{video_id}/vocals_removed.wav"
-    process_vocal_removal(original_path, vocals_removed_path)
+    vocals_path = f"/shared/audio/{video_id}/vocals.wav"
 
-    # שלב 3: עדכון Elasticsearch
+    # Demucs processing that creates both files
+    process_dual_separation(original_path, vocals_removed_path, vocals_path)
+
+    # שלב 3: עדכון Elasticsearch עם שני הנתיבים
     elasticsearch.update(
         index="songs",
         id=video_id,
-        body={"doc": {"file_paths.vocals_removed": vocals_removed_path}}
+        body={
+            "doc": {
+                "file_paths.vocals_removed": vocals_removed_path,
+                "file_paths.vocals": vocals_path
+            }
+        }
     )
 
     # שלב 4: דיווח ל-Kafka (ללא נתיבים)
