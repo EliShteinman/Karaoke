@@ -15,20 +15,29 @@ logger = Logger.get_logger(name="api-server-services")
 def _is_song_ready(song_doc: Dict[str, Any]) -> bool:
     """Check if song has both required files for karaoke."""
     file_paths = song_doc.get("file_paths", {})
-    vocals_removed = file_paths.get("vocals_removed")
-    lyrics = file_paths.get("lyrics")
+
+    # Check for files in both the nested object and as separate fields (for backward compatibility)
+    vocals_removed = file_paths.get("vocals_removed") or song_doc.get("file_paths.vocals_removed")
+    lyrics = file_paths.get("lyrics") or song_doc.get("file_paths.lyrics")
+
     return bool(
         vocals_removed and lyrics and
-        vocals_removed.strip() and lyrics.strip()
+        str(vocals_removed).strip() and str(lyrics).strip()
     )
 
 def _calculate_progress(song_doc: Dict[str, Any]) -> schemas.Progress:
     """Calculate processing progress for a song based on file paths."""
     file_paths = song_doc.get("file_paths", {})
+
+    # Check for files in both the nested object and as separate fields (for backward compatibility)
+    has_original = bool(file_paths.get("original") or song_doc.get("file_paths.original"))
+    has_vocals = bool(file_paths.get("vocals_removed") or song_doc.get("file_paths.vocals_removed"))
+    has_lyrics = bool(file_paths.get("lyrics") or song_doc.get("file_paths.lyrics"))
+
     return schemas.Progress(
-        download=bool(file_paths.get("original")),
-        audio_processing=bool(file_paths.get("vocals_removed")),
-        transcription=bool(file_paths.get("lyrics")),
+        download=has_original,
+        audio_processing=has_vocals,
+        transcription=has_lyrics,
         files_ready=_is_song_ready(song_doc)
     )
 

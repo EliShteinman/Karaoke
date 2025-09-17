@@ -58,16 +58,40 @@ class SongRepository:
         Update file path for a specific file type
         file_type: 'original', 'vocals_removed', 'lyrics'
         """
-        update_data = {f"file_paths.{file_type}": file_path}
+        # Get current document to preserve existing file_paths
+        current_doc = await self.es.get_document(video_id)
+        if not current_doc:
+            logger.error(f"Cannot update file path for non-existent song: {video_id}")
+            return None
+
+        # Get existing file_paths or create empty dict
+        current_file_paths = current_doc.get("file_paths", {})
+
+        # Update the specific file type
+        current_file_paths[file_type] = file_path
+
+        # Update the entire file_paths object
+        update_data = {"file_paths": current_file_paths}
         return await self.es.update_document(video_id, update_data)
 
     async def update_metadata(
         self, video_id: str, metadata: Dict
     ) -> Optional[Dict]:
         """Update song metadata"""
-        update_data = {}
-        for key, value in metadata.items():
-            update_data[f"metadata.{key}"] = value
+        # Get current document to preserve existing metadata
+        current_doc = await self.es.get_document(video_id)
+        if not current_doc:
+            logger.error(f"Cannot update metadata for non-existent song: {video_id}")
+            return None
+
+        # Get existing metadata or create empty dict
+        current_metadata = current_doc.get("metadata", {})
+
+        # Update the specific metadata keys
+        current_metadata.update(metadata)
+
+        # Update the entire metadata object
+        update_data = {"metadata": current_metadata}
         return await self.es.update_document(video_id, update_data)
 
     async def mark_song_failed(
