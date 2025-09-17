@@ -6,7 +6,7 @@ Uses shared file storage for consistency
 import os
 from typing import List
 
-from shared.storage import create_file_manager
+from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
 
 from services.transcriptionService.app.models import TranscriptionSegment, LRCMetadata
