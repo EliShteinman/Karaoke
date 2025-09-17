@@ -20,12 +20,15 @@
 ### 3. מתן סטטוס שיר ספציפי
 1. **קבלת בקשה** מ-Streamlit Client דרך `GET /songs/{video_id}/status`
 2. **שליפת מסמך** מ-Elasticsearch לפי video_id (קריאה בלבד)
-3. **חישוב התקדמות** על בסיס שדות file_paths:
-   - `download`: קיים `file_paths.original`
-   - `audio_processing`: קיים `file_paths.vocals_removed`
-   - `transcription`: קיים `file_paths.lyrics`
-   - `files_ready`: שני הקבצים האחרונים קיימים ולא ריקים
-4. **החזרת סטטוס מפורט** עם אחוזי התקדמות
+3. **שליפת אובייקט הסטטוס המפורט** מהמסמך:
+   - `status.overall` - סטטוס כללי
+   - `status.download` - מצב ההורדה
+   - `status.audio_processing` - מצב עיבוד האודיו
+   - `status.transcription` - מצב התמלול
+4. **חישוב שדה `is_ready`** דינמית:
+   - `true` אם כל השלבים במצב "completed"
+   - `false` אחרת
+5. **החזרת סטטוס מפורט** עם השדה המחושב
 
 ### 4. מתן רשימת שירים מוכנים
 1. **קבלת בקשה** מ-Streamlit Client דרך `GET /songs`

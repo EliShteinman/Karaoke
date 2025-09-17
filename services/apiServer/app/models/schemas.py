@@ -37,8 +37,15 @@ class DownloadResponse(BaseModel):
     video_id: str
     message: str
 
+class StatusDetails(BaseModel):
+    """Schema representing the detailed status of a song."""
+    overall: str
+    download: str
+    audio_processing: str
+    transcription: str
+
 class Progress(BaseModel):
-    """Schema representing the processing progress of a song."""
+    """Schema representing the processing progress of a song (legacy for backward compatibility)."""
     download: bool
     audio_processing: bool
     transcription: bool
@@ -63,5 +70,6 @@ class SongsResponse(BaseModel):
 class StatusResponse(BaseModel):
     """Schema for the response when checking a song's status."""
     video_id: str
-    status: str
-    progress: Progress
+    status: StatusDetails
+    is_ready: bool
+    progress: Progress  # Keep for backward compatibility

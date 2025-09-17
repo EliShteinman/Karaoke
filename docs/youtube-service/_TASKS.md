@@ -13,13 +13,20 @@
 
 ### 2. פונקציה: הורדת שיר נבחר
 1. **קבלת בקשת הורדה** מ-API Server (HTTP call פנימי)
-2. **יצירת מסמך ראשוני** ב-Elasticsearch עם מטאדאטה
-3. **הורדת הקובץ** באמצעות YTDLP:
+2. **יצירת מסמך ראשוני** ב-Elasticsearch עם סטטוסים:
+   - `status.overall: "downloading"`
+   - `status.download: "pending"`
+   - `status.audio_processing: "pending"`
+   - `status.transcription: "pending"`
+3. **התחלת הורדה:** עדכון `status.download: "in_progress"`
+4. **הורדת הקובץ** באמצעות YTDLP:
    - יצירת תיקייה: `/shared/audio/{video_id}/`
    - הורדה בפורמט MP3 באיכות 128kbps
    - שמירה כ-`original.mp3`
-4. **עדכון Elasticsearch** עם נתיב הקובץ המקורי ומטאדאטה
-5. **שליחת 3 הודעות Kafka (רק video_id):**
+5. **עדכון Elasticsearch** עם נתיב הקובץ המקורי:
+   - `status.download: "completed"`
+   - `status.overall: "processing"`
+6. **שליחת 3 הודעות Kafka (רק video_id):**
    - אירוע סיום: `song.downloaded`
    - פקודת עיבוד: `audio.process.requested`
    - פקודת תמלול: `transcription.process.requested`

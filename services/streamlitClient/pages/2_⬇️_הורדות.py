@@ -21,9 +21,21 @@ def get_status_color(status: str) -> str:
         'downloading': '🟠',
         'failed': '🔴',
         'error': '🔴',
-        'queued': '🔵'
+        'queued': '🔵',
+        'pending': '⚪',
+        'in_progress': '🟡'
     }
     return status_colors.get(status.lower(), '⚪')
+
+def get_detailed_status_emoji(status: str) -> str:
+    """Get detailed emoji for specific status states"""
+    status_emojis = {
+        'pending': '⏳',
+        'in_progress': '🔄',
+        'completed': '✅',
+        'failed': '❌'
+    }
+    return status_emojis.get(status.lower(), '❓')
 
 def get_progress_percentage(progress: Dict[str, Any]) -> float:
     """Calculate overall progress percentage"""
@@ -34,8 +46,80 @@ def get_progress_percentage(progress: Dict[str, Any]) -> float:
     completed_steps = sum(1 for step in steps if progress.get(step, False))
     return (completed_steps / len(steps)) * 100
 
-def render_detailed_progress(progress: Dict[str, Any]) -> None:
-    """Render detailed progress information"""
+def render_detailed_status(song: Dict[str, Any]) -> None:
+    """Render detailed status information with enhanced display"""
+
+    # Check for new detailed status structure
+    detailed_status = song.get('status', {})
+
+    # If song.status is a dict (new format), use detailed status
+    if isinstance(detailed_status, dict):
+        st.markdown("**📊 סטטוס מפורט:**")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            download_status = detailed_status.get('download', 'unknown')
+            download_emoji = get_detailed_status_emoji(download_status)
+            if download_status == 'completed':
+                st.success(f"{download_emoji} הורדה הושלמה")
+            elif download_status == 'in_progress':
+                st.info(f"{download_emoji} מוריד מיוטיוב...")
+            elif download_status == 'failed':
+                st.error(f"{download_emoji} הורדה נכשלה")
+            else:
+                st.write(f"{download_emoji} הורדה: {download_status}")
+
+        with col2:
+            audio_status = detailed_status.get('audio_processing', 'unknown')
+            audio_emoji = get_detailed_status_emoji(audio_status)
+            if audio_status == 'completed':
+                st.success(f"{audio_emoji} עיבוד אודיו הושלם")
+            elif audio_status == 'in_progress':
+                st.info(f"{audio_emoji} מעבד אודיו...")
+            elif audio_status == 'failed':
+                st.error(f"{audio_emoji} עיבוד אודיו נכשל")
+            elif audio_status == 'pending':
+                st.write(f"{audio_emoji} ממתין לעיבוד אודיו")
+            else:
+                st.write(f"{audio_emoji} עיבוד אודיו: {audio_status}")
+
+        with col3:
+            transcription_status = detailed_status.get('transcription', 'unknown')
+            transcription_emoji = get_detailed_status_emoji(transcription_status)
+            if transcription_status == 'completed':
+                st.success(f"{transcription_emoji} תמלול הושלם")
+            elif transcription_status == 'in_progress':
+                st.info(f"{transcription_emoji} מתמלל...")
+            elif transcription_status == 'failed':
+                st.error(f"{transcription_emoji} תמלול נכשל")
+            elif transcription_status == 'pending':
+                st.write(f"{transcription_emoji} ממתין לתמלול")
+            else:
+                st.write(f"{transcription_emoji} תמלול: {transcription_status}")
+
+        # Calculate progress from detailed status
+        overall_status = detailed_status.get('overall', 'unknown')
+        is_ready = song.get('is_ready', False)
+
+        if is_ready:
+            st.progress(1.0)
+            st.caption("🎉 השיר מוכן לקריוקי!")
+        else:
+            # Calculate percentage based on completed steps
+            steps = ['download', 'audio_processing', 'transcription']
+            completed_steps = sum(1 for step in steps if detailed_status.get(step) == 'completed')
+            percentage = (completed_steps / len(steps)) * 100
+            st.progress(percentage / 100)
+            st.caption(f"התקדמות כללית: {percentage:.0f}% | סטטוס: {overall_status}")
+
+    else:
+        # Fallback to legacy progress display
+        render_legacy_progress(song)
+
+def render_legacy_progress(song: Dict[str, Any]) -> None:
+    """Render legacy progress information for backward compatibility"""
+    progress = song.get('progress', {})
     if not progress:
         st.write("❓ מידע התקדמות לא זמין")
         return
@@ -75,16 +159,33 @@ def get_processing_songs_with_forced_refresh() -> tuple[List[Dict[str, Any]], Li
     logger.info("Force refreshing songs data from API...")
     all_songs = get_songs_library()
 
-    # Filter to show only processing songs using new progress data
+    # Filter to show only processing songs using new detailed status or legacy progress data
     processing_songs = []
     for song in all_songs:
-        progress = song.get('progress', {})
-        files_ready = progress.get('files_ready', False) if progress else song.get('files_ready', True)
-        status = song.get('status', '')
+        # Check for new is_ready field first
+        is_ready = song.get('is_ready')
+        if is_ready is not None:
+            # Use new detailed status structure
+            detailed_status = song.get('status', {})
+            if isinstance(detailed_status, dict):
+                overall_status = detailed_status.get('overall', '')
+                # Include songs that are not ready and not failed
+                if not is_ready and overall_status.lower() not in ['failed', 'error']:
+                    processing_songs.append(song)
+            else:
+                # Fallback: legacy status field with new is_ready
+                status = str(detailed_status)
+                if not is_ready and status.lower() not in ['failed', 'error']:
+                    processing_songs.append(song)
+        else:
+            # Fallback to legacy progress logic
+            progress = song.get('progress', {})
+            files_ready = progress.get('files_ready', False) if progress else song.get('files_ready', True)
+            status = song.get('status', '')
 
-        # Include songs that are not ready and not failed
-        if not files_ready and status.lower() not in ['failed', 'error']:
-            processing_songs.append(song)
+            # Include songs that are not ready and not failed
+            if not files_ready and status.lower() not in ['failed', 'error']:
+                processing_songs.append(song)
 
     logger.info(f"Found {len(processing_songs)} processing songs out of {len(all_songs)} total")
     return processing_songs, all_songs
@@ -178,7 +279,7 @@ else:
                     # Show detailed progress if enabled
                     if show_details:
                         with st.expander("📊 פרטי התקדמות", expanded=True):
-                            render_detailed_progress(progress)
+                            render_detailed_status(song)
                 else:
                     # Fallback to old display if no progress data
                     if status == 'processing':
@@ -194,7 +295,8 @@ else:
                         st.markdown(f"ℹ️ **סטטוס:** {status}")
 
                     if show_details:
-                        st.info("מידע התקדמות מפורט לא זמין לשיר זה")
+                        with st.expander("📊 פרטי התקדמות", expanded=True):
+                            render_detailed_status(song)
 
 # Instructions
 st.markdown("---")
