@@ -47,12 +47,13 @@ class SpeechToTextService:
             "beam_size": 5,
             "word_timestamps": True,
             "vad_filter": True,
+            "initial_prompt": "שיר בעברית עם מילים וכתוביות, מוסיקה עברית עם מילים",  # Hebrew prompt for better context
             "vad_parameters": {
-                "threshold": 0.3,  # Lower threshold for music with background
-                "min_speech_duration_ms": 150,  # Shorter for musical phrases
-                "max_speech_duration_s": 60,  # Longer for musical segments
-                "min_silence_duration_ms": 800,  # Shorter gaps between lyrics
-                "speech_pad_ms": 200  # Less padding for tighter detection
+                "threshold": 0.2,  # More aggressive threshold for music with vocals
+                "min_speech_duration_ms": 100,  # Even shorter for brief musical phrases
+                "max_speech_duration_s": 30,  # Shorter max for better line segmentation
+                "min_silence_duration_ms": 500,  # Shorter silence gaps between lyrics
+                "speech_pad_ms": 150  # Minimal padding for tighter vocal detection
             }
         }
 
