@@ -8,7 +8,7 @@ from typing import Dict, Optional
 
 from shared.repositories.factory import RepositoryFactory
 from shared.repositories.song_repository_sync import SongRepositorySync
-from shared.storage import create_file_manager
+from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
 
 from services.transcriptionService.app.models import (
