@@ -31,13 +31,13 @@ class TranscriptionServiceConfig:
     storage_base_path = os.getenv("STORAGE_BASE_PATH", "data")
 
     # --- Service-Specific Settings: Speech-to-Text Model ---
-    stt_model_name = os.getenv("STT_MODEL_NAME", "large-v3")
+    stt_model_name = os.getenv("STT_MODEL_NAME", "ivrit-ai/whisper-large-v3-turbo-ct2")
     stt_device = os.getenv("STT_DEVICE", "cpu")
     stt_compute_type = os.getenv("STT_COMPUTE_TYPE", "int8")
 
     # --- Quality Control Settings ---
-    # Minimum confidence threshold for accepting transcription results
-    min_confidence_threshold = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.5"))
+    # Minimum confidence threshold for accepting transcription results (lowered for Hebrew music)
+    min_confidence_threshold = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.25"))
 
     # Preferred languages for transcription (in order of priority)
     preferred_languages = os.getenv("PREFERRED_LANGUAGES", "he,en").split(",")
