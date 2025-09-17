@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
 from shared.repositories.factory import RepositoryFactory
 from shared.storage.file_storage import create_file_manager
+from shared.utils.data_utils import normalize_elasticsearch_song_document
 from shared.utils.logger import Logger
 from services.audioProcessingService.config import AudioProcessingServiceConfig
 from services.audioProcessingService.Audio_separation import separate_vocals
@@ -165,10 +166,13 @@ class AudioProcessingService:
             logger.info(f"Started audio processing for {video_id}")
 
             # Get original file path from Elasticsearch
-            song_doc = self.song_repo.get_song(video_id)
-            if not song_doc:
+            raw_song_doc = self.song_repo.get_song(video_id)
+            if not raw_song_doc:
                 self._report_error(video_id, "SONG_NOT_FOUND", f"Song document not found for video_id: {video_id}")
                 return False
+
+            # Normalize the document to handle flat vs nested structure
+            song_doc = normalize_elasticsearch_song_document(raw_song_doc)
 
             file_paths = song_doc.get("file_paths", {})
             original_relative_path = file_paths.get("original")

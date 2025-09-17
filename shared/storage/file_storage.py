@@ -76,7 +76,11 @@ class VolumeFileStorage(FileStorageInterface):
         Args:
             base_path: Base directory for file storage (default: shared)
         """
-        self.base_path = PathManager.normalize_path(base_path)
+        # For base_path, we always want an absolute path
+        if Path(base_path).is_absolute():
+            self.base_path = Path(base_path).resolve()
+        else:
+            self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"VolumeFileStorage initialized with base path: {self.base_path}")
 
@@ -85,7 +89,7 @@ class VolumeFileStorage(FileStorageInterface):
         path_obj = PathManager.normalize_path(file_path)
         if path_obj.is_absolute():
             return path_obj
-        return self.base_path / PathManager.ensure_relative_path(file_path)
+        return self.base_path / path_obj
 
     def save_file(self, file_content: bytes, file_path: str) -> str:
         """Save file content and return the actual path"""

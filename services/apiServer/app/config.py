@@ -29,7 +29,7 @@ class APIServerConfig:
         self.youtube_service_url: str = os.getenv("YOUTUBE_SERVICE_URL", "http://youtube-service:8000")
 
         # --- Shared Storage Configuration ---
-        self.shared_storage_base_path: str = os.getenv("SHARED_STORAGE_BASE_PATH", str(Path("shared")))
+        self.shared_storage_base_path: str = os.getenv("SHARED_STORAGE_BASE_PATH", "data")
         self.shared_audio_path: str = os.getenv("SHARED_AUDIO_PATH", str(Path("shared") / "audio"))
 
         # --- Logging Configuration ---

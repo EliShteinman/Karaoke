@@ -28,7 +28,7 @@ class TranscriptionServiceConfig:
     elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
     # --- Storage Configuration ---
-    storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("data") / "audio"))
+    storage_base_path = os.getenv("STORAGE_BASE_PATH", "data")
 
     # --- Service-Specific Settings: Speech-to-Text Model ---
     stt_model_name = os.getenv("STT_MODEL_NAME", "large-v3")

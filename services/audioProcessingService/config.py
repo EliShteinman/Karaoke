@@ -29,7 +29,7 @@ class AudioProcessingServiceConfig:
     elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
     # --- Storage Configuration ---
-    storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("data") / "audio"))
+    storage_base_path = os.getenv("STORAGE_BASE_PATH", "data")
 
     # --- Service-Specific Settings: Audio Processing ---
     # Demucs model to use for vocal separation
