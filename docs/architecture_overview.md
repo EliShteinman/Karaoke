@@ -133,6 +133,7 @@
 /shared/audio/{video_id}/
 ├── original.wav           # YouTube Service
 ├── vocals_removed.wav     # Audio Processing Service
+├── vocals.wav             # Audio Processing Service
 └── lyrics.lrc            # Transcription Service
 ```
 

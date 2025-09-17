@@ -68,6 +68,10 @@ SONGS_INDEX_MAPPING = {
                     "type": "keyword",
                     "index": False
                 },
+                "vocals": {
+                    "type": "keyword",
+                    "index": False
+                },
                 "lyrics": {
                     "type": "keyword",
                     "index": False

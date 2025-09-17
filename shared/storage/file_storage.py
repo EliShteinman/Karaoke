@@ -230,6 +230,10 @@ class KaraokeFileManager:
         """Get standardized relative path for vocals removed audio file"""
         return build_relative_path("audio", video_id, "vocals_removed.wav")
 
+    def get_relative_path_vocals(self, video_id: str) -> str:
+        """Get standardized relative path for vocals only audio file"""
+        return build_relative_path("audio", video_id, "vocals.wav")
+
     def get_relative_path_lyrics(self, video_id: str) -> str:
         """Get standardized relative path for lyrics file"""
         return build_relative_path("audio", video_id, "lyrics.lrc")
@@ -249,6 +253,11 @@ class KaraokeFileManager:
         file_path = self.get_relative_path_vocals_removed(video_id)
         return self.storage.save_file(audio_content, file_path)
 
+    def save_vocals_audio(self, video_id: str, audio_content: bytes) -> str:
+        """Save processed vocals only audio"""
+        file_path = self.get_relative_path_vocals(video_id)
+        return self.storage.save_file(audio_content, file_path)
+
     def save_lyrics_file(self, video_id: str, lyrics_content: str) -> str:
         """Save LRC lyrics file"""
         file_path = self.get_relative_path_lyrics(video_id)
@@ -265,6 +274,11 @@ class KaraokeFileManager:
         file_path = self.get_relative_path_vocals_removed(video_id)
         return self.storage.read_file(file_path)
 
+    def get_vocals_audio(self, video_id: str) -> bytes:
+        """Get vocals only audio file content"""
+        file_path = self.get_relative_path_vocals(video_id)
+        return self.storage.read_file(file_path)
+
     def get_lyrics(self, video_id: str) -> str:
         """Get lyrics file content as string"""
         file_path = self.get_relative_path_lyrics(video_id)
@@ -275,6 +289,7 @@ class KaraokeFileManager:
         files = {
             "original": self.get_relative_path_original(video_id),
             "vocals_removed": self.get_relative_path_vocals_removed(video_id),
+            "vocals": self.get_relative_path_vocals(video_id),
             "lyrics": self.get_relative_path_lyrics(video_id),
         }
 
@@ -330,6 +345,7 @@ class KaraokeFileManager:
         files = {
             "original": self.get_relative_path_original(video_id),
             "vocals_removed": self.get_relative_path_vocals_removed(video_id),
+            "vocals": self.get_relative_path_vocals(video_id),
             "lyrics": self.get_relative_path_lyrics(video_id),
         }
 

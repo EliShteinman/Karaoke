@@ -193,25 +193,39 @@ class AudioProcessingService:
 
             logger.info(f"Found original file at: {original_absolute_path}")
 
-            # Use file manager to get standardized output path
+            # Use file manager to get standardized output paths for both files
             vocals_removed_relative = self.file_manager.get_relative_path_vocals_removed(video_id)
+            vocals_relative = self.file_manager.get_relative_path_vocals(video_id)
             vocals_removed_absolute = self.file_manager.get_full_path(vocals_removed_relative)
+            vocals_absolute = self.file_manager.get_full_path(vocals_relative)
             output_dir = os.path.dirname(vocals_removed_absolute)
 
-            logger.info(f"Processing {original_absolute_path} -> {vocals_removed_absolute}")
+            logger.info(f"Processing {original_absolute_path} -> dual output:")
+            logger.info(f"  - Vocals removed: {vocals_removed_absolute}")
+            logger.info(f"  - Vocals only: {vocals_absolute}")
 
             # Perform vocal separation
             processing_start = datetime.now()
             try:
-                logger.info(f"Starting vocal separation with Demucs...")
+                logger.info(f"Starting Demucs audio separation for {video_id}...")
+                logger.info(f"Input file size: {os.path.getsize(original_absolute_path)} bytes")
+
                 vocals_removed_result, vocals_only_result = separate_vocals(original_absolute_path, save_path=output_dir)
                 processing_time = (datetime.now() - processing_start).total_seconds()
-                logger.info(f"Vocal separation completed in {processing_time:.2f}s")
 
-                # Verify the result matches our expected path
+                logger.info(f"Demucs separation completed successfully in {processing_time:.2f}s")
+                logger.info(f"Created dual output files:")
+                logger.info(f"  - Instrumental: {vocals_removed_result}")
+                logger.info(f"  - Vocals: {vocals_only_result}")
+
+                # Verify the results match our expected paths
                 if vocals_removed_result != vocals_removed_absolute:
-                    logger.warning(f"Demucs output path {vocals_removed_result} differs from expected {vocals_removed_absolute}")
+                    logger.warning(f"Demucs vocals_removed output path {vocals_removed_result} differs from expected {vocals_removed_absolute}")
+                if vocals_only_result != vocals_absolute:
+                    logger.warning(f"Demucs vocals output path {vocals_only_result} differs from expected {vocals_absolute}")
+
                 vocals_removed_path = vocals_removed_result
+                vocals_path = vocals_only_result
 
             except Exception as e:
                 processing_time = (datetime.now() - processing_start).total_seconds()
@@ -219,33 +233,53 @@ class AudioProcessingService:
                 self._report_error(video_id, "VOCAL_SEPARATION_FAILED", f"Demucs processing failed: {str(e)}")
                 return False
 
-            # Verify output file was created and has reasonable size
+            # Verify both output files were created and have reasonable sizes
             if not os.path.exists(vocals_removed_path):
-                self._report_error(video_id, "OUTPUT_FILE_NOT_CREATED", "Vocal separation failed - output file not created")
+                self._report_error(video_id, "VOCALS_REMOVED_FILE_NOT_CREATED", "Vocal separation failed - vocals_removed.wav not created")
                 return False
 
-            # Quality gate: check if output file is reasonable size
+            if not os.path.exists(vocals_path):
+                self._report_error(video_id, "VOCALS_FILE_NOT_CREATED", "Vocal separation failed - vocals.wav not created")
+                return False
+
+            # Quality gate: check if output files have reasonable sizes
             original_size = os.path.getsize(original_absolute_path)
-            output_size = os.path.getsize(vocals_removed_path)
+            vocals_removed_size = os.path.getsize(vocals_removed_path)
+            vocals_size = os.path.getsize(vocals_path)
 
-            if output_size < (original_size * 0.1):  # Less than 10% of original size seems suspicious
-                self._report_error(video_id, "OUTPUT_FILE_TOO_SMALL", f"Output file suspiciously small: {output_size} bytes vs original {original_size} bytes")
+            logger.info(f"File sizes comparison:")
+            logger.info(f"  - Original: {original_size:,} bytes")
+            logger.info(f"  - Vocals removed: {vocals_removed_size:,} bytes")
+            logger.info(f"  - Vocals only: {vocals_size:,} bytes")
+
+            # Check if files are suspiciously small
+            if vocals_removed_size < (original_size * 0.05):  # Less than 5% seems suspicious
+                self._report_error(video_id, "VOCALS_REMOVED_FILE_TOO_SMALL", f"Vocals removed file suspiciously small: {vocals_removed_size} bytes vs original {original_size} bytes")
                 return False
 
-            # Update Elasticsearch with success - store relative path, not absolute
-            self.song_repo.update_file_path(video_id, "vocals_removed", vocals_removed_relative)
+            if vocals_size < (original_size * 0.05):  # Less than 5% seems suspicious
+                self._report_error(video_id, "VOCALS_FILE_TOO_SMALL", f"Vocals file suspiciously small: {vocals_size} bytes vs original {original_size} bytes")
+                return False
 
-            # Update processing metadata
+            # Update Elasticsearch with success - store both relative paths
+            logger.info(f"Updating Elasticsearch with dual file paths for {video_id}")
+            self.song_repo.update_file_path(video_id, "vocals_removed", vocals_removed_relative)
+            self.song_repo.update_file_path(video_id, "vocals", vocals_relative)
+
+            # Update processing metadata with both file information
             metadata = {
                 "audio": {
                     "processing_time": processing_time,
                     "original_size": original_size,
-                    "processed_size": output_size,
-                    "algorithm": "center_channel_extraction",
+                    "vocals_removed_size": vocals_removed_size,
+                    "vocals_size": vocals_size,
+                    "algorithm": "demucs_htdemucs",
+                    "separation_quality": "ml_based",
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
             self.song_repo.update_metadata(video_id, metadata)
+            logger.info(f"Updated Elasticsearch metadata with processing info")
 
             # Update status to completed (this will auto-check overall completion)
             self.song_repo.update_status_and_check_completion(video_id, "audio_processing", "completed")
@@ -253,7 +287,11 @@ class AudioProcessingService:
             # Send completion event to Kafka
             self._send_completion_event(video_id, processing_time)
 
-            logger.info(f"Successfully completed audio processing for {video_id} in {processing_time:.2f}s")
+            logger.info(f"🎵 Successfully completed dual audio processing for {video_id}")
+            logger.info(f"📊 Processing summary:")
+            logger.info(f"   ⏱️  Duration: {processing_time:.2f}s")
+            logger.info(f"   📁 Files created: vocals_removed.wav ({vocals_removed_size:,} bytes), vocals.wav ({vocals_size:,} bytes)")
+            logger.info(f"   🎯 Algorithm: Demucs ML separation")
             return True
 
         except Exception as e:
