@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
 from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
+from shared.utils.path_utils import PathManager, normalize_storage_path, fix_corrupted_path
 
 # Import config and models
 from services.transcriptionService.app.services.config import TranscriptionServiceConfig
@@ -113,20 +114,31 @@ class TranscriptionConsumer:
             if not original_path:
                 raise Exception("'file_paths.original' not found in song document")
 
-            # Convert absolute/full path to relative path for file manager
-            # The file manager expects paths relative to its base_path
-            if original_path.startswith(self.config.storage_base_path):
-                # Remove base path prefix if present
-                relative_path = original_path[len(self.config.storage_base_path):].lstrip('/')
-            elif original_path.startswith('./data/audio/'):
-                # Handle ./data/audio/ prefix
-                relative_path = original_path[len('./data/audio/'):].lstrip('/')
-            elif original_path.startswith('data/audio/'):
-                # Handle data/audio/ prefix
-                relative_path = original_path[len('data/audio/'):].lstrip('/')
+            # First, fix any corrupted escape sequences in the path
+            fixed_path = fix_corrupted_path(original_path)
+            self.logger.debug(f"[{video_id}] - Fixed path from '{original_path}' to '{fixed_path}'")
+
+            # Convert path to relative path for the file manager
+            # File manager base is "data/audio", so we need only the part AFTER "data/audio/"
+            # For "data/audio/PSX7uqJdrPg/original.mp3" -> "PSX7uqJdrPg/original.mp3"
+            if fixed_path.startswith('data/audio/'):
+                # Remove the "data/audio/" prefix to get the relative path
+                relative_path = fixed_path[len('data/audio/'):]
+            elif fixed_path.startswith('./data/audio/'):
+                # Remove the "./data/audio/" prefix
+                relative_path = fixed_path[len('./data/audio/'):]
             else:
-                # Use as-is if no prefix
-                relative_path = original_path
+                # Try to extract everything after 'audio/'
+                parts = fixed_path.split('/')
+                if 'audio' in parts:
+                    audio_idx = parts.index('audio')
+                    if audio_idx + 1 < len(parts):
+                        # Get everything after 'audio'
+                        relative_path = '/'.join(parts[audio_idx + 1:])
+                    else:
+                        relative_path = fixed_path
+                else:
+                    relative_path = fixed_path
 
             self.logger.debug(f"[{video_id}] - Original audio path: {original_path} -> {relative_path}")
 
@@ -259,8 +271,8 @@ class TranscriptionConsumer:
             # Build LRC content and save directly using storage
             lrc_content = self._build_lrc_content(segments, lrc_metadata)
 
-            # Create the file path relative to the storage base path
-            relative_lyrics_path = f"{video_id}/lyrics.lrc"
+            # Create the file path relative to the storage base path using cross-platform handling
+            relative_lyrics_path = str(PathManager.join(video_id, "lyrics.lrc"))
             lyrics_bytes = lrc_content.encode("utf-8")
 
             # Save using storage directly to avoid double base path

@@ -6,6 +6,7 @@ This is NOT a central config file - it's a template for independent service conf
 """
 
 import os
+from pathlib import Path
 from typing import Optional
 
 
@@ -52,7 +53,7 @@ class YouTubeServiceConfig:
         self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
         # Storage configuration - REQUIRED by shared/storage tools
-        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("shared")))
 
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):
@@ -86,7 +87,7 @@ class AudioServiceConfig:
         self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
         # Storage configuration - REQUIRED by shared/storage tools
-        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("shared")))
 
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):
@@ -118,7 +119,7 @@ class TranscriptionServiceConfig:
         self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
         # Storage configuration - REQUIRED by shared/storage tools
-        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", "/shared")
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("shared")))
 
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):
