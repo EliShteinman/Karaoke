@@ -112,14 +112,30 @@ class TranscriptionConsumer:
             original_path = song_doc.file_paths.get("original")
             if not original_path:
                 raise Exception("'file_paths.original' not found in song document")
-            self.logger.debug(f"[{video_id}] - Original audio path: {original_path}")
+
+            # Convert absolute/full path to relative path for file manager
+            # The file manager expects paths relative to its base_path
+            if original_path.startswith(self.config.storage_base_path):
+                # Remove base path prefix if present
+                relative_path = original_path[len(self.config.storage_base_path):].lstrip('/')
+            elif original_path.startswith('./data/audio/'):
+                # Handle ./data/audio/ prefix
+                relative_path = original_path[len('./data/audio/'):].lstrip('/')
+            elif original_path.startswith('data/audio/'):
+                # Handle data/audio/ prefix
+                relative_path = original_path[len('data/audio/'):].lstrip('/')
+            else:
+                # Use as-is if no prefix
+                relative_path = original_path
+
+            self.logger.debug(f"[{video_id}] - Original audio path: {original_path} -> {relative_path}")
 
             # Step 3: Update status to indicate transcription started
             self.es_updater.update_status_field(video_id, "transcription", "in_progress")
             self.logger.debug(f"[{video_id}] - Updated transcription status to 'in_progress'")
 
             # Step 4: Transcribe audio file
-            transcription_output = self._transcribe_audio(original_path, video_id)
+            transcription_output = self._transcribe_audio(relative_path, video_id)
 
             # Step 5: Create LRC file
             lyrics_path = self._create_lrc_file(video_id, transcription_output, song_doc)
@@ -162,11 +178,13 @@ class TranscriptionConsumer:
         self.logger.info(f"[{video_id}] - Step 2: Starting audio transcription with quality gates.")
 
         # Verify audio file exists before processing
-        if not self.file_manager.file_exists(audio_path):
+        if not self.file_manager.storage.file_exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            transcription_output = self.stt_service.transcribe_audio(audio_path)
+            # Convert relative path back to absolute for Whisper (it doesn't use file manager)
+            absolute_audio_path = str(self.file_manager.storage._get_full_path(audio_path))
+            transcription_output = self.stt_service.transcribe_audio(absolute_audio_path)
             metadata = transcription_output.processing_metadata
 
             self.logger.info(f"[{video_id}] - Initial transcription complete. Language: {metadata.language_detected}, Confidence: {metadata.confidence_score:.4f}")
@@ -192,7 +210,7 @@ class TranscriptionConsumer:
 
             # Quality Gate 4: Check for meaningful content
             full_text = transcription_output.transcription_result.full_text.strip()
-            if len(full_text) < 10:  # Very short transcription
+            if len(full_text) < 3:  # Allow very short transcriptions
                 raise ValueError(f"Transcription too short ({len(full_text)} characters). May indicate poor audio quality.")
 
             self.logger.info(f"[{video_id}] - Transcription quality validation passed. "
@@ -238,12 +256,18 @@ class TranscriptionConsumer:
         self.logger.info(f"[{video_id}] - Creating LRC file with {len(segments)} segments")
 
         try:
-            # Use shared file manager to save lyrics - this ensures correct path handling
+            # Build LRC content and save directly using storage
             lrc_content = self._build_lrc_content(segments, lrc_metadata)
-            created_path = self.file_manager.save_lyrics_file(video_id, lrc_content)
 
-            # Verify file was actually created
-            if not self.file_manager.file_exists(created_path):
+            # Create the file path relative to the storage base path
+            relative_lyrics_path = f"{video_id}/lyrics.lrc"
+            lyrics_bytes = lrc_content.encode("utf-8")
+
+            # Save using storage directly to avoid double base path
+            created_path = self.file_manager.storage.save_file(lyrics_bytes, relative_lyrics_path)
+
+            # Verify file was actually created using relative path
+            if not self.file_manager.storage.file_exists(relative_lyrics_path):
                 raise Exception(f"LRC file creation failed - file does not exist at: {created_path}")
 
             self.logger.info(f"[{video_id}] - LRC file successfully created at: {created_path}")

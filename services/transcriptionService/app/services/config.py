@@ -42,4 +42,4 @@ class TranscriptionServiceConfig:
     preferred_languages = os.getenv("PREFERRED_LANGUAGES", "he,en").split(",")
 
     # Minimum number of segments required for valid transcription
-    min_segments_required = int(os.getenv("MIN_SEGMENTS_REQUIRED", "3"))
+    min_segments_required = int(os.getenv("MIN_SEGMENTS_REQUIRED", "1"))

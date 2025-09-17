@@ -38,8 +38,12 @@ class SpeechToTextService:
         self.logger.info(f"Starting transcription process for audio file: {audio_path}")
         self.logger.debug(f"Model configuration: {self.model_name} (device: {self.config.stt_device}, compute: {self.config.stt_compute_type})")
 
+        # Use auto-detection for better multilingual support
+        # This allows Whisper to detect the actual language of the audio
+        preferred_language = None  # Let Whisper auto-detect the language
+
         transcription_params: Dict[str, Any] = {
-            "language": self.config.preferred_languages,  # Use prioritized language detection
+            "language": preferred_language,  # Single language code or None for auto-detection
             "beam_size": 5,
             "word_timestamps": True,
             "vad_filter": True,

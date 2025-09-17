@@ -222,7 +222,7 @@ class ElasticsearchUpdater:
             self.logger.debug(f"[{video_id}] - Extracting searchable text from: {lyrics_path}")
 
             # Verify file exists before reading
-            if not self.file_manager.file_exists(lyrics_path):
+            if not self.file_manager.storage.file_exists(lyrics_path):
                 self.logger.warning(f"[{video_id}] - LRC file not found at: {lyrics_path}")
                 return ""
 
