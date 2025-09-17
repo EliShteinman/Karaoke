@@ -42,7 +42,8 @@ class TranscriptionConsumer:
                 topics=[self.config.kafka_topic_transcription_requested],
                 bootstrap_servers=self.config.kafka_bootstrap_servers,
                 group_id=self.config.kafka_consumer_group,
-                auto_offset_reset='earliest'
+                auto_offset_reset='earliest',
+                consumer_timeout_ms=-1  # Disable timeout for continuous listening
             )
             self.producer: KafkaProducerSync = KafkaProducerSync(
                 bootstrap_servers=self.config.kafka_bootstrap_servers
@@ -64,12 +65,25 @@ class TranscriptionConsumer:
             self.consumer.start()
             self.producer.start()
             self.logger.info(f"Listening to topic: '{self.config.kafka_topic_transcription_requested}'")
+
+            # Continuous message processing loop
             for msg in self.consumer.consume():
-                self._process_message(msg)
+                try:
+                    self._process_message(msg)
+                except Exception as msg_error:
+                    # Log individual message processing errors but continue the loop
+                    self.logger.error(f"Error processing individual message: {msg_error}")
+                    self.logger.debug(f"Message processing error traceback: {traceback.format_exc()}")
+                    # Continue to next message - don't break the entire consumer loop
+                    continue
+
         except KeyboardInterrupt:
             self.logger.info("Shutdown signal received.")
         except Exception as e:
             self.logger.critical(f"Critical error in consumer loop. Error: {e}")
+            self.logger.debug(f"Consumer loop error traceback: {traceback.format_exc()}")
+            # Re-raise critical errors that should stop the entire service
+            raise
         finally:
             self._shutdown()
 
@@ -187,6 +201,10 @@ class TranscriptionConsumer:
             self.logger.info(f"[{video_id}] - Failure report sent successfully.")
         except Exception as e:
             self.logger.critical(f"[{video_id}] - FAILED TO HANDLE ERROR. Final error: {e}")
+
+    def shutdown(self) -> None:
+        """Public method for graceful shutdown"""
+        self._shutdown()
 
     def _shutdown(self) -> None:
         try:
