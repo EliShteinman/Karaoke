@@ -23,7 +23,6 @@ from services.transcriptionService.app.models import (
     ProcessingMetadata
 )
 from services.transcriptionService.app.services.elasticsearch_updater import ElasticsearchUpdater
-from services.transcriptionService.app.services.lrc_generator import create_lrc_file
 from services.transcriptionService.app.services.speech_to_text import SpeechToTextService
 
 
@@ -150,18 +149,138 @@ class TranscriptionConsumer:
         return song_doc
 
     def _transcribe_audio(self, audio_path: str, video_id: str) -> TranscriptionOutput:
-        self.logger.debug(f"[{video_id}] - Step 2: Starting audio transcription.")
-        transcription_output = self.stt_service.transcribe_audio(audio_path)
-        self.logger.debug(f"[{video_id}] - Transcription finished. Detected language: {transcription_output.processing_metadata.language_detected}")
-        return transcription_output
+        """
+        Transcribe audio with comprehensive quality validation
+
+        Returns:
+            TranscriptionOutput: Validated transcription results
+
+        Raises:
+            ValueError: If transcription quality is below acceptable thresholds
+            Exception: If transcription process fails
+        """
+        self.logger.info(f"[{video_id}] - Step 2: Starting audio transcription with quality gates.")
+
+        # Verify audio file exists before processing
+        if not self.file_manager.file_exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        try:
+            transcription_output = self.stt_service.transcribe_audio(audio_path)
+            metadata = transcription_output.processing_metadata
+
+            self.logger.info(f"[{video_id}] - Initial transcription complete. Language: {metadata.language_detected}, Confidence: {metadata.confidence_score:.4f}")
+
+            # Quality Gate 1: Check minimum confidence threshold
+            if metadata.confidence_score < self.config.min_confidence_threshold:
+                raise ValueError(
+                    f"Transcription confidence {metadata.confidence_score:.4f} below minimum threshold {self.config.min_confidence_threshold}. "
+                    f"Quality too low for reliable transcription."
+                )
+
+            # Quality Gate 2: Check minimum number of segments
+            segment_count = len(transcription_output.transcription_result.segments)
+            if segment_count < self.config.min_segments_required:
+                raise ValueError(
+                    f"Transcription produced only {segment_count} segments, below minimum required {self.config.min_segments_required}. "
+                    f"Audio may be too short or unclear."
+                )
+
+            # Quality Gate 3: Validate language detection confidence
+            if metadata.language_probability < 0.3:  # Language detection confidence too low
+                self.logger.warning(f"[{video_id}] - Low language detection confidence: {metadata.language_probability:.4f}")
+
+            # Quality Gate 4: Check for meaningful content
+            full_text = transcription_output.transcription_result.full_text.strip()
+            if len(full_text) < 10:  # Very short transcription
+                raise ValueError(f"Transcription too short ({len(full_text)} characters). May indicate poor audio quality.")
+
+            self.logger.info(f"[{video_id}] - Transcription quality validation passed. "
+                           f"Confidence: {metadata.confidence_score:.4f}, Segments: {segment_count}, "
+                           f"Language: {metadata.language_detected} ({metadata.language_probability:.4f})")
+
+            return transcription_output
+
+        except ValueError as e:
+            # Quality gate failures - these are expected validation errors
+            self.logger.error(f"[{video_id}] - Transcription quality validation failed: {e}")
+            raise
+        except Exception as e:
+            # Unexpected transcription errors
+            self.logger.error(f"[{video_id}] - Transcription process failed: {e}")
+            raise
 
     def _create_lrc_file(self, video_id: str, transcription_output: TranscriptionOutput, song_doc: ElasticsearchSongDocument) -> str:
+        """
+        Create LRC file with proper path validation and error handling
+
+        Returns:
+            str: Path to successfully created LRC file
+
+        Raises:
+            Exception: If file creation fails or path is invalid
+        """
         self.logger.debug(f"[{video_id}] - Step 3: Creating LRC file.")
-        output_path = f"{self.config.storage_base_path}/audio/{video_id}/lyrics.lrc"
+
+        # Construct proper file path - avoid double audio/ paths
+        # Use file_manager.save_lyrics_file which handles correct path construction
         lrc_metadata = LRCMetadata(artist=song_doc.artist, title=song_doc.title, album=song_doc.album or "")
-        created_path = create_lrc_file(segments=transcription_output.transcription_result.segments, metadata=lrc_metadata, output_path=output_path)
-        self.logger.debug(f"[{video_id}] - LRC file created at: {created_path}")
-        return created_path
+
+        # Validate metadata before proceeding
+        if not lrc_metadata.artist or not lrc_metadata.title:
+            raise ValueError(f"Missing essential metadata: artist='{lrc_metadata.artist}', title='{lrc_metadata.title}'")
+
+        # Validate transcription quality before creating file
+        segments = transcription_output.transcription_result.segments
+        if not segments:
+            raise ValueError("No transcription segments found - cannot create LRC file")
+
+        self.logger.info(f"[{video_id}] - Creating LRC file with {len(segments)} segments")
+
+        try:
+            # Use shared file manager to save lyrics - this ensures correct path handling
+            lrc_content = self._build_lrc_content(segments, lrc_metadata)
+            created_path = self.file_manager.save_lyrics_file(video_id, lrc_content)
+
+            # Verify file was actually created
+            if not self.file_manager.file_exists(created_path):
+                raise Exception(f"LRC file creation failed - file does not exist at: {created_path}")
+
+            self.logger.info(f"[{video_id}] - LRC file successfully created at: {created_path}")
+            return created_path
+
+        except Exception as e:
+            self.logger.error(f"[{video_id}] - Failed to create LRC file: {e}")
+            raise
+
+    def _build_lrc_content(self, segments, metadata: LRCMetadata) -> str:
+        """
+        Build LRC file content with proper timing and metadata
+        """
+        from services.transcriptionService.app.services.text_processor import clean_text
+
+        lrc_lines = []
+
+        # Add metadata headers
+        lrc_lines.append(f"[ar:{metadata.artist}]")
+        lrc_lines.append(f"[ti:{metadata.title}]")
+        lrc_lines.append(f"[al:{metadata.album}]")
+        lrc_lines.append(f"[by:Karaoke AI System]")
+        lrc_lines.append("")
+
+        # Add timestamped lyrics
+        for segment in segments:
+            start_time = self._format_lrc_timestamp(segment.start)
+            cleaned_text = clean_text(segment.text)
+            lrc_lines.append(f"[{start_time}]{cleaned_text}")
+
+        return "\n".join(lrc_lines)
+
+    def _format_lrc_timestamp(self, seconds: float) -> str:
+        """Format timestamp for LRC file"""
+        minutes = int(seconds // 60)
+        remaining_seconds = seconds % 60
+        return f"{minutes:02d}:{remaining_seconds:05.2f}"
 
     def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> None:
         self.logger.debug(f"[{video_id}] - Step 4: Updating Elasticsearch with results.")

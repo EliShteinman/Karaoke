@@ -208,13 +208,46 @@ class ElasticsearchUpdater:
             return False
 
     def _extract_searchable_text(self, lyrics_path: str, video_id: str) -> str:
+        """
+        Extract searchable text from LRC file using proper file manager
+
+        Args:
+            lyrics_path: Path to the LRC file
+            video_id: Video ID for logging
+
+        Returns:
+            str: Extracted text content for search indexing
+        """
         try:
             self.logger.debug(f"[{video_id}] - Extracting searchable text from: {lyrics_path}")
+
+            # Verify file exists before reading
+            if not self.file_manager.file_exists(lyrics_path):
+                self.logger.warning(f"[{video_id}] - LRC file not found at: {lyrics_path}")
+                return ""
+
+            # Use proper file manager method to read file content
             lyrics_content = self.file_manager.read_file(lyrics_path)
-            lines = [line.strip().split(']', 1)[-1] for line in lyrics_content.split('\n') if line.strip() and line.startswith('[') and ']' in line]
+
+            if not lyrics_content:
+                self.logger.warning(f"[{video_id}] - LRC file is empty: {lyrics_path}")
+                return ""
+
+            # Extract only the text content from LRC timestamps [mm:ss.ss]text
+            lines = []
+            for line in lyrics_content.split('\n'):
+                line = line.strip()
+                if line and line.startswith('[') and ']' in line:
+                    # Skip metadata lines like [ar:artist] but include timed lyrics [00:12.34]text
+                    if ':' in line and not line.startswith('[ar:') and not line.startswith('[ti:') and not line.startswith('[al:') and not line.startswith('[by:'):
+                        text_part = line.split(']', 1)[-1].strip()
+                        if text_part:
+                            lines.append(text_part)
+
             searchable_text = " ".join(lines)
-            self.logger.debug(f"[{video_id}] - Extracted {len(searchable_text)} characters of searchable text.")
+            self.logger.debug(f"[{video_id}] - Extracted {len(searchable_text)} characters of searchable text from {len(lines)} lyrics lines.")
             return searchable_text
+
         except Exception as e:
             self.logger.error(f"[{video_id}] - Could not extract searchable text from {lyrics_path}. Error: {e}")
             return ""

@@ -33,3 +33,13 @@ class TranscriptionServiceConfig:
     stt_model_name = os.getenv("STT_MODEL_NAME", "large-v3")
     stt_device = os.getenv("STT_DEVICE", "cpu")
     stt_compute_type = os.getenv("STT_COMPUTE_TYPE", "int8")
+
+    # --- Quality Control Settings ---
+    # Minimum confidence threshold for accepting transcription results
+    min_confidence_threshold = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.5"))
+
+    # Preferred languages for transcription (in order of priority)
+    preferred_languages = os.getenv("PREFERRED_LANGUAGES", "he,en").split(",")
+
+    # Minimum number of segments required for valid transcription
+    min_segments_required = int(os.getenv("MIN_SEGMENTS_REQUIRED", "3"))

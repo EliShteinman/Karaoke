@@ -39,7 +39,7 @@ class SpeechToTextService:
         self.logger.debug(f"Model configuration: {self.model_name} (device: {self.config.stt_device}, compute: {self.config.stt_compute_type})")
 
         transcription_params: Dict[str, Any] = {
-            "language": None,
+            "language": self.config.preferred_languages,  # Use prioritized language detection
             "beam_size": 5,
             "word_timestamps": True,
             "vad_filter": True,
