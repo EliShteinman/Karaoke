@@ -2,7 +2,6 @@
 Transcription Consumer - Handles transcription processing requests
 Complies with architectural mandates and uses shared infrastructure tools
 """
-import os
 import traceback
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -11,6 +10,8 @@ from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
 from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
 
+# Import config and models
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
 from services.transcriptionService.app.models import (
     KafkaRequestMessage,
     KafkaDoneMessage,
@@ -18,10 +19,10 @@ from services.transcriptionService.app.models import (
     ErrorDetails,
     LRCMetadata,
     TranscriptionOutput,
-    ElasticsearchSongDocument
+    ElasticsearchSongDocument,
+    ProcessingMetadata
 )
 from services.transcriptionService.app.services.elasticsearch_updater import ElasticsearchUpdater
-from services.transcriptionService.app.services.lrc_generator import create_lrc_file
 from services.transcriptionService.app.services.speech_to_text import SpeechToTextService
 
 
@@ -33,109 +34,108 @@ class TranscriptionConsumer:
 
     def __init__(self) -> None:
         self.logger = Logger.get_logger(__name__)
-
-        # Kafka Topics from environment
-        self.request_topic: str = os.getenv("KAFKA_TOPIC_REQUEST", "transcription.process.requested")
-        self.done_topic: str = os.getenv("KAFKA_TOPIC_DONE", "transcription.done")
-        self.failed_topic: str = os.getenv("KAFKA_TOPIC_FAILED", "transcription.failed")
-
-        bootstrap_servers = os.getenv("KAFKA_BROKER")
-        if not bootstrap_servers:
-            self.logger.critical("KAFKA_BROKER environment variable not set")
-            raise ValueError("KAFKA_BROKER environment variable is required")
+        self.config = TranscriptionServiceConfig()
 
         try:
-            # Initialize shared Kafka clients
             self.consumer: KafkaConsumerSync = KafkaConsumerSync(
-                topics=[self.request_topic],
-                bootstrap_servers=bootstrap_servers,
-                group_id="transcription-service-group",
-                auto_offset_reset='earliest'
+                topics=[self.config.kafka_topic_transcription_requested],
+                bootstrap_servers=self.config.kafka_bootstrap_servers,
+                group_id=self.config.kafka_consumer_group,
+                auto_offset_reset='earliest',
+                consumer_timeout_ms=-1  # Disable timeout for continuous listening
             )
-
             self.producer: KafkaProducerSync = KafkaProducerSync(
-                bootstrap_servers=bootstrap_servers
+                bootstrap_servers=self.config.kafka_bootstrap_servers
             )
-
-            # Initialize shared file manager
             self.file_manager = create_file_manager(
                 storage_type="volume",
-                base_path=os.getenv("SHARED_STORAGE_PATH", "/shared")
+                base_path=self.config.storage_base_path
             )
-
-            # Initialize services
             self.stt_service = SpeechToTextService()
             self.es_updater = ElasticsearchUpdater()
-
-            self.logger.info("TranscriptionConsumer initialized successfully with shared infrastructure")
-
+            self.logger.info("TranscriptionConsumer initialized successfully.")
         except Exception as e:
             self.logger.critical(f"Failed to initialize TranscriptionConsumer. Error: {e}")
-            self.logger.error(f"Consumer initialization error details: {str(e)}")
             raise
 
     def start(self) -> None:
-        """Start the transcription consumer"""
         try:
             self.logger.info("Starting TranscriptionConsumer...")
             self.consumer.start()
             self.producer.start()
-            self.logger.info(f"TranscriptionConsumer is listening to topic: '{self.request_topic}'")
+            self.logger.info(f"Listening to topic: '{self.config.kafka_topic_transcription_requested}'")
 
-            # Process messages using consume() generator from shared client
+            # Continuous message processing loop
             for msg in self.consumer.consume():
-                self._process_message(msg)
+                try:
+                    self._process_message(msg)
+                except Exception as msg_error:
+                    # Log individual message processing errors but continue the loop
+                    self.logger.error(f"Error processing individual message: {msg_error}")
+                    self.logger.debug(f"Message processing error traceback: {traceback.format_exc()}")
+                    # Continue to next message - don't break the entire consumer loop
+                    continue
 
         except KeyboardInterrupt:
-            self.logger.info("Received shutdown signal")
+            self.logger.info("Shutdown signal received.")
         except Exception as e:
-            self.logger.critical(f"Critical error in TranscriptionConsumer. Error: {e}")
-            self.logger.critical(f"Critical error details: {str(e)}")
+            self.logger.critical(f"Critical error in consumer loop. Error: {e}")
+            self.logger.debug(f"Consumer loop error traceback: {traceback.format_exc()}")
+            # Re-raise critical errors that should stop the entire service
+            raise
         finally:
             self._shutdown()
 
     def _process_message(self, msg: Dict[str, Any]) -> None:
-        """
-        Process a single transcription message
-
-        Args:
-            msg: Message from Kafka consumer
-        """
         video_id: Optional[str] = None
-
         try:
-            # Extract and validate message data
-            data = msg.get("value", {})
+            self.logger.debug(f"Raw message received: {msg}")
+            message_value = msg.get("value", {})
 
-            # Validate message structure using Pydantic model
+            # Extract data from the nested 'data' field in the message
+            data = message_value.get("data", {})
+            if not data:
+                self.logger.warning(f"No 'data' field found in message. Full payload: {message_value}")
+                return
+
             try:
                 request_msg = KafkaRequestMessage(**data)
                 video_id = request_msg.video_id
+                self.logger.debug(f"[{video_id}] - Message validated successfully.")
             except Exception as validation_error:
-                self.logger.warning(f"Invalid message structure received. Error: {validation_error}. Payload: {data}")
+                self.logger.warning(f"Invalid message structure. Error: {validation_error}. Message data: {data}")
                 return
 
-            self.logger.info(f"[{video_id}] - Received new transcription request")
+            self.logger.info(f"[{video_id}] - Processing new transcription request.")
 
-            # Step 1: Fetch song document from Elasticsearch
-            self.logger.debug(f"[{video_id}] - Fetching song document from Elasticsearch")
             song_doc = self._get_song_document(video_id)
-            if not song_doc:
-                raise Exception("Song document not found in Elasticsearch")
-
-            # Step 2: Get original audio file path
             original_path = song_doc.file_paths.get("original")
             if not original_path:
                 raise Exception("'file_paths.original' not found in song document")
+
+            # Convert absolute/full path to relative path for file manager
+            # The file manager expects paths relative to its base_path
+            if original_path.startswith(self.config.storage_base_path):
+                # Remove base path prefix if present
+                relative_path = original_path[len(self.config.storage_base_path):].lstrip('/')
+            elif original_path.startswith('./data/audio/'):
+                # Handle ./data/audio/ prefix
+                relative_path = original_path[len('./data/audio/'):].lstrip('/')
+            elif original_path.startswith('data/audio/'):
+                # Handle data/audio/ prefix
+                relative_path = original_path[len('data/audio/'):].lstrip('/')
+            else:
+                # Use as-is if no prefix
+                relative_path = original_path
+
+            self.logger.debug(f"[{video_id}] - Original audio path: {original_path} -> {relative_path}")
 
             # Step 3: Update status to indicate transcription started
             self.es_updater.update_status_field(video_id, "transcription", "in_progress")
             self.logger.debug(f"[{video_id}] - Updated transcription status to 'in_progress'")
 
             # Step 4: Transcribe audio file
-            self.logger.debug(f"[{video_id}] - Starting audio transcription for file: {original_path}")
-            transcription_output = self._transcribe_audio(original_path)
-            self.logger.debug(f"[{video_id}] - Transcription finished in {transcription_output.processing_metadata.processing_time} seconds")
+            transcription_output = self._transcribe_audio(relative_path, video_id)
 
             # Step 5: Create LRC file
             lyrics_path = self._create_lrc_file(video_id, transcription_output, song_doc)
@@ -147,202 +147,213 @@ class TranscriptionConsumer:
 
             # Step 7: Send success message to Kafka
             self._send_success_message(video_id, transcription_output)
-            self.logger.info(f"[{video_id}] - Successfully processed transcription request")
+            
+            self.logger.info(f"[{video_id}] - Successfully processed transcription request.")
 
         except Exception as e:
-            self.logger.error(f"[{video_id}] - Failed to process transcription request. Reason: {e}")
-            self.logger.error(f"[{video_id}] - Processing error details: {str(e)}")
+            self.logger.error(f"[{video_id}] - Failed to process request. Reason: {e}")
             self.logger.debug(traceback.format_exc())
-
             if video_id:
                 self._handle_processing_error(video_id, e)
 
     def _get_song_document(self, video_id: str) -> ElasticsearchSongDocument:
-        """
-        Get song document from Elasticsearch
-
-        Args:
-            video_id: YouTube video ID
-
-        Returns:
-            Song document
-
-        Raises:
-            Exception: If document not found or retrieval fails
-        """
+        self.logger.debug(f"[{video_id}] - Step 1: Fetching song document from Elasticsearch.")
         song_doc = self.es_updater.get_song_document(video_id)
         if not song_doc:
-            self.logger.error(f"[{video_id}] - Song document not found in Elasticsearch")
             raise Exception("Song document not found in Elasticsearch")
+        self.logger.debug(f"[{video_id}] - Song document retrieved successfully. Title: {song_doc.title}")
         return song_doc
 
-    def _transcribe_audio(self, audio_path: str) -> TranscriptionOutput:
+    def _transcribe_audio(self, audio_path: str, video_id: str) -> TranscriptionOutput:
         """
-        Transcribe audio file using speech-to-text service
-
-        Args:
-            audio_path: Path to audio file
+        Transcribe audio with comprehensive quality validation
 
         Returns:
-            Transcription output with results and metadata
+            TranscriptionOutput: Validated transcription results
 
         Raises:
-            Exception: If transcription fails
+            ValueError: If transcription quality is below acceptable thresholds
+            Exception: If transcription process fails
         """
-        return self.stt_service.transcribe_audio(audio_path)
+        self.logger.info(f"[{video_id}] - Step 2: Starting audio transcription with quality gates.")
 
-    def _create_lrc_file(
-        self,
-        video_id: str,
-        transcription_output: TranscriptionOutput,
-        song_doc: ElasticsearchSongDocument
-    ) -> str:
+        # Verify audio file exists before processing
+        if not self.file_manager.storage.file_exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        try:
+            # Convert relative path back to absolute for Whisper (it doesn't use file manager)
+            absolute_audio_path = str(self.file_manager.storage._get_full_path(audio_path))
+            transcription_output = self.stt_service.transcribe_audio(absolute_audio_path)
+            metadata = transcription_output.processing_metadata
+
+            self.logger.info(f"[{video_id}] - Initial transcription complete. Language: {metadata.language_detected}, Confidence: {metadata.confidence_score:.4f}")
+
+            # Quality Gate 1: Check minimum confidence threshold
+            if metadata.confidence_score < self.config.min_confidence_threshold:
+                raise ValueError(
+                    f"Transcription confidence {metadata.confidence_score:.4f} below minimum threshold {self.config.min_confidence_threshold}. "
+                    f"Quality too low for reliable transcription."
+                )
+
+            # Quality Gate 2: Check minimum number of segments
+            segment_count = len(transcription_output.transcription_result.segments)
+            if segment_count < self.config.min_segments_required:
+                raise ValueError(
+                    f"Transcription produced only {segment_count} segments, below minimum required {self.config.min_segments_required}. "
+                    f"Audio may be too short or unclear."
+                )
+
+            # Quality Gate 3: Validate language detection confidence
+            if metadata.language_probability < 0.3:  # Language detection confidence too low
+                self.logger.warning(f"[{video_id}] - Low language detection confidence: {metadata.language_probability:.4f}")
+
+            # Quality Gate 4: Check for meaningful content
+            full_text = transcription_output.transcription_result.full_text.strip()
+            if len(full_text) < 3:  # Allow very short transcriptions
+                raise ValueError(f"Transcription too short ({len(full_text)} characters). May indicate poor audio quality.")
+
+            self.logger.info(f"[{video_id}] - Transcription quality validation passed. "
+                           f"Confidence: {metadata.confidence_score:.4f}, Segments: {segment_count}, "
+                           f"Language: {metadata.language_detected} ({metadata.language_probability:.4f})")
+
+            return transcription_output
+
+        except ValueError as e:
+            # Quality gate failures - these are expected validation errors
+            self.logger.error(f"[{video_id}] - Transcription quality validation failed: {e}")
+            raise
+        except Exception as e:
+            # Unexpected transcription errors
+            self.logger.error(f"[{video_id}] - Transcription process failed: {e}")
+            raise
+
+    def _create_lrc_file(self, video_id: str, transcription_output: TranscriptionOutput, song_doc: ElasticsearchSongDocument) -> str:
         """
-        Create LRC file from transcription results
-
-        Args:
-            video_id: YouTube video ID
-            transcription_output: Transcription results
-            song_doc: Song document for metadata
+        Create LRC file with proper path validation and error handling
 
         Returns:
-            Path to created LRC file
+            str: Path to successfully created LRC file
 
         Raises:
-            Exception: If LRC creation fails
+            Exception: If file creation fails or path is invalid
         """
-        output_path = f"/shared/audio/{video_id}/lyrics.lrc"
+        self.logger.debug(f"[{video_id}] - Step 3: Creating LRC file.")
 
-        lrc_metadata = LRCMetadata(
-            artist=song_doc.artist,
-            title=song_doc.title,
-            album=song_doc.album or ""
-        )
+        # Construct proper file path - avoid double audio/ paths
+        # Use file_manager.save_lyrics_file which handles correct path construction
+        lrc_metadata = LRCMetadata(artist=song_doc.artist, title=song_doc.title, album=song_doc.album or "")
 
-        return create_lrc_file(
-            segments=transcription_output.transcription_result.segments,
-            metadata=lrc_metadata,
-            output_path=output_path
-        )
+        # Validate metadata before proceeding
+        if not lrc_metadata.artist or not lrc_metadata.title:
+            raise ValueError(f"Missing essential metadata: artist='{lrc_metadata.artist}', title='{lrc_metadata.title}'")
 
-    def _update_elasticsearch_success(
-        self,
-        video_id: str,
-        lyrics_path: str,
-        processing_metadata
-    ) -> None:
+        # Validate transcription quality before creating file
+        segments = transcription_output.transcription_result.segments
+        if not segments:
+            raise ValueError("No transcription segments found - cannot create LRC file")
+
+        self.logger.info(f"[{video_id}] - Creating LRC file with {len(segments)} segments")
+
+        try:
+            # Build LRC content and save directly using storage
+            lrc_content = self._build_lrc_content(segments, lrc_metadata)
+
+            # Create the file path relative to the storage base path
+            relative_lyrics_path = f"{video_id}/lyrics.lrc"
+            lyrics_bytes = lrc_content.encode("utf-8")
+
+            # Save using storage directly to avoid double base path
+            created_path = self.file_manager.storage.save_file(lyrics_bytes, relative_lyrics_path)
+
+            # Verify file was actually created using relative path
+            if not self.file_manager.storage.file_exists(relative_lyrics_path):
+                raise Exception(f"LRC file creation failed - file does not exist at: {created_path}")
+
+            self.logger.info(f"[{video_id}] - LRC file successfully created at: {created_path}")
+            return created_path
+
+        except Exception as e:
+            self.logger.error(f"[{video_id}] - Failed to create LRC file: {e}")
+            raise
+
+    def _build_lrc_content(self, segments, metadata: LRCMetadata) -> str:
         """
-        Update Elasticsearch with successful transcription results
-
-        Args:
-            video_id: YouTube video ID
-            lyrics_path: Path to lyrics file
-            processing_metadata: Processing metadata
-
-        Raises:
-            Exception: If Elasticsearch update fails
+        Build LRC file content with proper timing and metadata
         """
-        success = self.es_updater.update_song_document(
-            video_id=video_id,
-            lyrics_path=lyrics_path,
-            processing_metadata=processing_metadata
-        )
+        from services.transcriptionService.app.services.text_processor import clean_text
 
+        lrc_lines = []
+
+        # Add metadata headers
+        lrc_lines.append(f"[ar:{metadata.artist}]")
+        lrc_lines.append(f"[ti:{metadata.title}]")
+        lrc_lines.append(f"[al:{metadata.album}]")
+        lrc_lines.append(f"[by:Karaoke AI System]")
+        lrc_lines.append("")
+
+        # Add timestamped lyrics
+        for segment in segments:
+            start_time = self._format_lrc_timestamp(segment.start)
+            cleaned_text = clean_text(segment.text)
+            lrc_lines.append(f"[{start_time}]{cleaned_text}")
+
+        return "\n".join(lrc_lines)
+
+    def _format_lrc_timestamp(self, seconds: float) -> str:
+        """Format timestamp for LRC file"""
+        minutes = int(seconds // 60)
+        remaining_seconds = seconds % 60
+        return f"{minutes:02d}:{remaining_seconds:05.2f}"
+
+    def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> None:
+        self.logger.debug(f"[{video_id}] - Step 4: Updating Elasticsearch with results.")
+        success = self.es_updater.update_song_document(video_id=video_id, lyrics_path=lyrics_path, processing_metadata=processing_metadata)
         if not success:
             raise Exception("Failed to update Elasticsearch with transcription results")
+        self.logger.debug(f"[{video_id}] - Elasticsearch document updated successfully.")
 
     def _send_success_message(self, video_id: str, transcription_output: TranscriptionOutput) -> None:
-        """
-        Send success message to Kafka
-
-        Args:
-            video_id: YouTube video ID
-            transcription_output: Transcription results
-
-        Raises:
-            Exception: If message sending fails
-        """
+        self.logger.debug(f"[{video_id}] - Step 5: Sending success message to Kafka.")
         metadata = transcription_output.processing_metadata
-
-        # Create structured done message
         done_message = KafkaDoneMessage(
-            video_id=video_id,
-            status="transcription_done",
-            language=metadata.language_detected,
-            confidence=metadata.confidence_score,
-            word_count=metadata.word_count,
-            line_count=metadata.line_count,
-            processing_time=metadata.processing_time,
-            model_used=metadata.model_used,
-            metadata={
-                "language_probability": metadata.language_probability,
-                "duration_seconds": metadata.duration_seconds
-            },
+            video_id=video_id, status="transcription_done", language=metadata.language_detected,
+            confidence=metadata.confidence_score, word_count=metadata.word_count, line_count=metadata.line_count,
+            processing_time=metadata.processing_time, model_used=metadata.model_used,
+            metadata={"language_probability": metadata.language_probability, "duration_seconds": metadata.duration_seconds},
             timestamp=datetime.now(timezone.utc).isoformat()
         )
-
-        # Send message using shared producer
-        self.producer.send_message(
-            topic=self.done_topic,
-            message=done_message.dict(),
-            key=video_id
-        )
+        self.logger.debug(f"[{video_id}] - Sending done message: {done_message.dict()}")
+        self.producer.send_message(topic=self.config.kafka_topic_transcription_done, message=done_message.dict(), key=video_id)
+        self.logger.debug(f"[{video_id}] - Success message sent to Kafka.")
 
     def _handle_processing_error(self, video_id: str, error: Exception) -> None:
-        """
-        Handle processing errors by updating Elasticsearch and sending failure message
-
-        Args:
-            video_id: YouTube video ID
-            error: Exception that occurred
-        """
         try:
-            # Create error details
+            self.logger.warning(f"[{video_id}] - Handling processing error: {error}")
             error_details = ErrorDetails(
-                code="TRANSCRIPTION_FAILED",
-                message=str(error),
-                service="transcription_service",
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                trace=traceback.format_exc()
+                code="TRANSCRIPTION_FAILED", message=str(error), service="transcription_service",
+                timestamp=datetime.now(timezone.utc).isoformat(), trace=traceback.format_exc()
             )
-
-            # Update Elasticsearch with error
+            self.logger.debug(f"[{video_id}] - Updating Elasticsearch with error details.")
             self.es_updater.update_song_with_error(video_id, error_details)
-
-            # Send failure message to Kafka
-            failed_message = KafkaFailedMessage(
-                video_id=video_id,
-                status="failed",
-                error=error_details
-            )
-
-            self.producer.send_message(
-                topic=self.failed_topic,
-                message=failed_message.dict(),
-                key=video_id
-            )
-
-            self.logger.info(f"[{video_id}] - Failure report sent to Elasticsearch and Kafka")
-
+            
+            failed_message = KafkaFailedMessage(video_id=video_id, status="failed", error=error_details)
+            self.logger.debug(f"[{video_id}] - Sending failure message to Kafka: {failed_message.dict()}")
+            self.producer.send_message(topic=self.config.kafka_topic_transcription_failed, message=failed_message.dict(), key=video_id)
+            
+            self.logger.info(f"[{video_id}] - Failure report sent successfully.")
         except Exception as e:
-            self.logger.error(f"[{video_id}] - Failed to handle processing error. Error: {e}")
-            self.logger.error(f"[{video_id}] - Error handling error details: {str(e)}")
+            self.logger.critical(f"[{video_id}] - FAILED TO HANDLE ERROR. Final error: {e}")
+
+    def shutdown(self) -> None:
+        """Public method for graceful shutdown"""
+        self._shutdown()
 
     def _shutdown(self) -> None:
-        """Shutdown the consumer and cleanup resources"""
         try:
             self.logger.info("Shutting down TranscriptionConsumer...")
-
-            if hasattr(self, 'consumer'):
-                self.consumer.stop()
-                self.logger.debug("Kafka consumer stopped")
-
-            if hasattr(self, 'producer'):
-                self.producer.stop()
-                self.logger.debug("Kafka producer stopped")
-
-            self.logger.info("TranscriptionConsumer shutdown completed")
-
+            if hasattr(self, 'consumer'): self.consumer.stop()
+            if hasattr(self, 'producer'): self.producer.stop()
+            self.logger.info("Shutdown complete.")
         except Exception as e:
-            self.logger.error(f"Error during TranscriptionConsumer shutdown. Error: {e}")
-            self.logger.error(f"Shutdown error details: {str(e)}")
+            self.logger.error(f"Error during shutdown. Error: {e}")

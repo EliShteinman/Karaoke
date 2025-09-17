@@ -3,7 +3,6 @@ LRC file generator service
 Creates LRC files with proper timing and metadata
 Uses shared file storage for consistency
 """
-import os
 from typing import List
 
 from shared.storage.file_storage import create_file_manager
@@ -11,6 +10,7 @@ from shared.utils.logger import Logger
 
 from services.transcriptionService.app.models import TranscriptionSegment, LRCMetadata
 from services.transcriptionService.app.services.text_processor import clean_text
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
 
 
 logger = Logger.get_logger(__name__)
@@ -51,18 +51,23 @@ def create_lrc_file(
         Exception: If file creation fails
     """
     try:
-        logger.debug(f"Creating LRC file at: {output_path}")
+        logger.info(f"Starting LRC file creation process for {len(segments)} segments")
+        logger.debug(f"Target output path: {output_path}")
+        logger.debug(f"Metadata: Artist='{metadata.artist}', Title='{metadata.title}', Album='{metadata.album}'")
 
-        # Initialize shared file manager
+        # Initialize shared file manager using configuration
+        config = TranscriptionServiceConfig()
+        logger.debug(f"Using storage base path: {config.storage_base_path}")
         file_manager = create_file_manager(
             storage_type="volume",
-            base_path=os.getenv("SHARED_STORAGE_PATH", "/shared")
+            base_path=config.storage_base_path
         )
 
         # Build LRC content
         lrc_content = []
 
         # Add metadata headers
+        logger.debug("Adding LRC metadata headers")
         lrc_content.append(f"[ar:{metadata.artist}]")
         lrc_content.append(f"[ti:{metadata.title}]")
         lrc_content.append(f"[al:{metadata.album}]")
@@ -70,13 +75,18 @@ def create_lrc_file(
         lrc_content.append("")
 
         # Add timestamped lyrics
-        for segment in segments:
+        logger.debug(f"Processing {len(segments)} segments for LRC timestamps")
+        for i, segment in enumerate(segments):
             start_time = format_lrc_timestamp(segment.start)
             cleaned_text = clean_text(segment.text)
             lrc_content.append(f"[{start_time}]{cleaned_text}")
 
+            if i % 20 == 0:  # Log every 20th segment to avoid spam
+                logger.debug(f"Processed LRC segment {i + 1}/{len(segments)}: [{start_time}] {cleaned_text[:50]}{'...' if len(cleaned_text) > 50 else ''}")
+
         # Join content and save using shared file manager
         lrc_text = "\n".join(lrc_content)
+        logger.debug(f"Generated LRC content with {len(lrc_text)} characters")
 
         # Extract video_id from output path for file manager
         # Expected path format: /shared/audio/{video_id}/lyrics.lrc
@@ -89,15 +99,20 @@ def create_lrc_file(
 
         if not video_id:
             logger.error(f"Could not extract video_id from output path: {output_path}")
+            logger.debug(f"Path parts analysis: {path_parts}")
             raise ValueError(f"Invalid output path format: {output_path}")
 
+        logger.debug(f"Extracted video_id: {video_id}")
+
         # Save using shared file manager
+        logger.debug(f"Saving LRC file using shared file manager for video_id: {video_id}")
         actual_path = file_manager.save_lyrics_file(video_id, lrc_text)
 
-        logger.info(f"Successfully created LRC file: {actual_path}")
+        logger.info(f"Successfully created LRC file at: {actual_path}")
+        logger.debug(f"LRC file contains {len(segments)} timestamped segments")
         return actual_path
 
     except Exception as e:
         logger.error(f"Failed to create LRC file at {output_path}. Error: {e}")
-        logger.error(f"LRC creation error details: {str(e)}")
+        logger.debug(f"LRC creation error details: {str(e)}")
         raise
