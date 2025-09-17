@@ -61,6 +61,10 @@ class YouTubeServiceConfig:
     YTDLP_AUDIO_FORMAT: str = os.getenv("YTDLP_AUDIO_FORMAT", "mp3")
     YTDLP_AUDIO_QUALITY: str = os.getenv("YTDLP_AUDIO_QUALITY", "128K")
 
+    # ===== YouTube Cookies Configuration =====
+    YOUTUBE_COOKIES_FILE: Optional[str] = os.getenv("YOUTUBE_COOKIES_FILE")
+    YOUTUBE_COOKIES_FROM_BROWSER: Optional[str] = os.getenv("YOUTUBE_COOKIES_FROM_BROWSER")  # e.g., "chrome", "firefox"
+
     # ===== Service Configuration =====
     SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", 8001))
     SERVICE_HOST: str = os.getenv("SERVICE_HOST", "0.0.0.0")

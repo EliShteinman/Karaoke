@@ -213,6 +213,9 @@ class YouTubeDownloadService:
             'writeautomaticsub': False
         }
 
+        # Add cookies configuration if available
+        self._add_cookies_to_ydl_opts(ydl_opts)
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
@@ -372,3 +375,26 @@ class YouTubeDownloadService:
         except Exception as e:
             self.logger.error(f"Error extracting artist from title '{title}': {e}")
             return ""
+
+    def _add_cookies_to_ydl_opts(self, ydl_opts: dict) -> None:
+        """Add cookies configuration to yt-dlp options if available"""
+        try:
+            # Option 1: Use cookies from a file
+            if config.YOUTUBE_COOKIES_FILE:
+                cookies_file_path = Path(config.YOUTUBE_COOKIES_FILE)
+                if cookies_file_path.exists():
+                    ydl_opts['cookiefile'] = str(cookies_file_path)
+                    self.logger.info(f"Using cookies from file: {cookies_file_path}")
+                else:
+                    self.logger.warning(f"Cookies file not found: {cookies_file_path}")
+
+            # Option 2: Use cookies from browser (takes precedence over file)
+            elif config.YOUTUBE_COOKIES_FROM_BROWSER:
+                ydl_opts['cookiesfrombrowser'] = (config.YOUTUBE_COOKIES_FROM_BROWSER, None, None, None)
+                self.logger.info(f"Using cookies from browser: {config.YOUTUBE_COOKIES_FROM_BROWSER}")
+
+            else:
+                self.logger.debug("No cookies configuration found - proceeding without cookies")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to configure cookies: {e}. Proceeding without cookies.")
