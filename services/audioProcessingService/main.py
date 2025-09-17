@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 from shared.kafka.sync_client import KafkaConsumerSync, KafkaProducerSync
 from shared.repositories.factory import RepositoryFactory
+from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
 from services.audioProcessingService.config import AudioProcessingServiceConfig
 from services.audioProcessingService.Audio_separation import separate_vocals
@@ -71,6 +72,12 @@ class AudioProcessingService:
             elasticsearch_scheme=self.config.elasticsearch_scheme,
             songs_index=self.config.elasticsearch_songs_index,
             async_mode=False
+        )
+
+        # Initialize file manager for standardized path handling
+        self.file_manager = create_file_manager(
+            storage_type="volume",
+            base_path=self.config.storage_base_path
         )
 
         logger.info("Audio Processing Service initialized successfully")
@@ -164,54 +171,42 @@ class AudioProcessingService:
                 return False
 
             file_paths = song_doc.get("file_paths", {})
-            original_path = file_paths.get("original")
+            original_relative_path = file_paths.get("original")
 
-            if not original_path:
+            if not original_relative_path:
                 self._report_error(video_id, "ORIGINAL_FILE_NOT_FOUND", f"Original file path not found for video_id: {video_id}")
                 return False
 
-            # Handle path resolution - check if it's already absolute or needs to be made relative to project root
-            if not os.path.isabs(original_path):
-                # If it's a relative path, it might be relative to project root
-                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                absolute_path = os.path.join(project_root, original_path)
-            else:
-                absolute_path = original_path
-
-            # Verify original file exists
-            if not os.path.exists(absolute_path):
-                # Try alternative paths if the first doesn't work
-                if not os.path.isabs(original_path):
-                    # Try current working directory
-                    cwd_path = os.path.join(os.getcwd(), original_path)
-                    if os.path.exists(cwd_path):
-                        absolute_path = cwd_path
-                    else:
-                        self._report_error(video_id, "ORIGINAL_FILE_MISSING",
-                                         f"Original file does not exist. Tried: {original_path}, {absolute_path}, {cwd_path}")
-                        return False
-                else:
-                    self._report_error(video_id, "ORIGINAL_FILE_MISSING", f"Original file does not exist: {absolute_path}")
+            # Use file manager to get absolute path - this handles cross-platform consistency
+            try:
+                original_absolute_path = self.file_manager.get_full_path(original_relative_path)
+                if not self.file_manager.storage.file_exists(original_relative_path):
+                    self._report_error(video_id, "ORIGINAL_FILE_MISSING", f"Original file does not exist: {original_absolute_path}")
                     return False
+            except Exception as e:
+                self._report_error(video_id, "PATH_RESOLUTION_ERROR", f"Failed to resolve file path: {original_relative_path}, error: {str(e)}")
+                return False
 
-            logger.info(f"Found original file at: {absolute_path}")
-            original_path = absolute_path  # Use the resolved absolute path
+            logger.info(f"Found original file at: {original_absolute_path}")
 
-            # Define output path with fixed filename
-            output_dir = os.path.dirname(original_path)
-            vocals_removed_path = os.path.join(output_dir, "vocals_removed.mp3")
+            # Use file manager to get standardized output path
+            vocals_removed_relative = self.file_manager.get_relative_path_vocals_removed(video_id)
+            vocals_removed_absolute = self.file_manager.get_full_path(vocals_removed_relative)
+            output_dir = os.path.dirname(vocals_removed_absolute)
 
-            logger.info(f"Processing {original_path} -> {vocals_removed_path}")
+            logger.info(f"Processing {original_absolute_path} -> {vocals_removed_absolute}")
 
             # Perform vocal separation
             processing_start = datetime.now()
             try:
                 logger.info(f"Starting vocal separation with Demucs...")
-                vocals_removed_result, vocals_only_result = separate_vocals(original_path, save_path=output_dir)
+                vocals_removed_result, vocals_only_result = separate_vocals(original_absolute_path, save_path=output_dir)
                 processing_time = (datetime.now() - processing_start).total_seconds()
                 logger.info(f"Vocal separation completed in {processing_time:.2f}s")
 
-                # Update the vocals_removed_path to the actual result from the function
+                # Verify the result matches our expected path
+                if vocals_removed_result != vocals_removed_absolute:
+                    logger.warning(f"Demucs output path {vocals_removed_result} differs from expected {vocals_removed_absolute}")
                 vocals_removed_path = vocals_removed_result
 
             except Exception as e:
@@ -226,15 +221,15 @@ class AudioProcessingService:
                 return False
 
             # Quality gate: check if output file is reasonable size
-            original_size = os.path.getsize(original_path)
+            original_size = os.path.getsize(original_absolute_path)
             output_size = os.path.getsize(vocals_removed_path)
 
             if output_size < (original_size * 0.1):  # Less than 10% of original size seems suspicious
                 self._report_error(video_id, "OUTPUT_FILE_TOO_SMALL", f"Output file suspiciously small: {output_size} bytes vs original {original_size} bytes")
                 return False
 
-            # Update Elasticsearch with success
-            self.song_repo.update_file_path(video_id, "vocals_removed", vocals_removed_path)
+            # Update Elasticsearch with success - store relative path, not absolute
+            self.song_repo.update_file_path(video_id, "vocals_removed", vocals_removed_relative)
 
             # Update processing metadata
             metadata = {

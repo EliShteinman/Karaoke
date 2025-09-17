@@ -187,9 +187,14 @@ class YouTubeDownloadService:
         self.logger.info(f"Updated download status to 'in_progress' for video_id='{video_id}'")
 
         url = f"https://www.youtube.com/watch?v={video_id}"
-        output_dir = self.base_path / video_id
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = output_dir / "original.mp3"
+
+        # Use file manager to get standardized path - this ensures cross-platform compatibility
+        relative_path = self.file_manager.get_relative_path_original(video_id)
+        output_file_path = self.file_manager.get_full_path(relative_path)
+        output_file = Path(output_file_path)
+
+        # Ensure directory exists
+        output_file.parent.mkdir(parents=True, exist_ok=True)
 
         self.logger.info(f"Starting YTDLP download for video_id='{video_id}' to '{output_file}'")
 
@@ -224,7 +229,8 @@ class YouTubeDownloadService:
             if output_file.exists():
                 file_size = output_file.stat().st_size
                 self.logger.info(f"Download completed: {output_file} ({file_size} bytes)")
-                return str(output_file)
+                # Return the RELATIVE path for Elasticsearch storage, not absolute path
+                return relative_path
             else:
                 raise Exception(f"Downloaded file not found at {output_file}")
 
@@ -237,7 +243,7 @@ class YouTubeDownloadService:
         try:
             self.logger.info(f"Updating Elasticsearch document after download for video_id='{video_id}'")
 
-            # Update file path
+            # Update file path - file_path is already relative path from _download_file
             self.song_repository.update_file_path(video_id, "original", file_path)
 
             # Update status - download completed, overall status to processing
@@ -245,8 +251,9 @@ class YouTubeDownloadService:
             self.song_repository.update_status_field(video_id, "overall", "processing")
             self.logger.info(f"Updated status: download='completed', overall='processing' for video_id='{video_id}'")
 
-            # Get file metadata
-            file_size = os.path.getsize(file_path)
+            # Get file metadata - need full path for file operations
+            full_file_path = self.file_manager.get_full_path(file_path)
+            file_size = os.path.getsize(full_file_path)
 
             # Update metadata
             metadata = {
@@ -268,7 +275,9 @@ class YouTubeDownloadService:
             self.logger.info(f"Sending Kafka messages for video_id='{video_id}'")
 
             timestamp = datetime.now(timezone.utc).isoformat()
-            file_size = os.path.getsize(file_path)
+            # file_path is relative, need full path for file operations
+            full_file_path = self.file_manager.get_full_path(file_path)
+            file_size = os.path.getsize(full_file_path)
 
             # Message 1: song.downloaded event
             downloaded_message = SongDownloadedMessage(

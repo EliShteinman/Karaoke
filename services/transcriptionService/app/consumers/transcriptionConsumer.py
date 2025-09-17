@@ -114,33 +114,10 @@ class TranscriptionConsumer:
             if not original_path:
                 raise Exception("'file_paths.original' not found in song document")
 
-            # First, fix any corrupted escape sequences in the path
-            fixed_path = fix_corrupted_path(original_path)
-            self.logger.debug(f"[{video_id}] - Fixed path from '{original_path}' to '{fixed_path}'")
-
-            # Convert path to relative path for the file manager
-            # File manager base is "data/audio", so we need only the part AFTER "data/audio/"
-            # For "data/audio/PSX7uqJdrPg/original.mp3" -> "PSX7uqJdrPg/original.mp3"
-            if fixed_path.startswith('data/audio/'):
-                # Remove the "data/audio/" prefix to get the relative path
-                relative_path = fixed_path[len('data/audio/'):]
-            elif fixed_path.startswith('./data/audio/'):
-                # Remove the "./data/audio/" prefix
-                relative_path = fixed_path[len('./data/audio/'):]
-            else:
-                # Try to extract everything after 'audio/'
-                parts = fixed_path.split('/')
-                if 'audio' in parts:
-                    audio_idx = parts.index('audio')
-                    if audio_idx + 1 < len(parts):
-                        # Get everything after 'audio'
-                        relative_path = '/'.join(parts[audio_idx + 1:])
-                    else:
-                        relative_path = fixed_path
-                else:
-                    relative_path = fixed_path
-
-            self.logger.debug(f"[{video_id}] - Original audio path: {original_path} -> {relative_path}")
+            # Use the original_path as stored in Elasticsearch - it should already be relative
+            # since we've standardized the file saving process
+            relative_path = original_path
+            self.logger.debug(f"[{video_id}] - Using relative path from Elasticsearch: {relative_path}")
 
             # Step 3: Update status to indicate transcription started
             self.es_updater.update_status_field(video_id, "transcription", "in_progress")
@@ -194,8 +171,8 @@ class TranscriptionConsumer:
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         try:
-            # Convert relative path back to absolute for Whisper (it doesn't use file manager)
-            absolute_audio_path = str(self.file_manager.storage._get_full_path(audio_path))
+            # Use file manager to get absolute path for Whisper processing
+            absolute_audio_path = self.file_manager.get_full_path(audio_path)
             transcription_output = self.stt_service.transcribe_audio(absolute_audio_path)
             metadata = transcription_output.processing_metadata
 
@@ -268,18 +245,16 @@ class TranscriptionConsumer:
         self.logger.info(f"[{video_id}] - Creating LRC file with {len(segments)} segments")
 
         try:
-            # Build LRC content and save directly using storage
+            # Build LRC content and save using file manager standardized methods
             lrc_content = self._build_lrc_content(segments, lrc_metadata)
 
-            # Create the file path relative to the storage base path using cross-platform handling
-            # File manager expects paths relative to its base, so just video_id/lyrics.lrc
-            relative_lyrics_path = str(PathManager.join(video_id, "lyrics.lrc")).replace('\\', '/')
-            lyrics_bytes = lrc_content.encode("utf-8")
+            # Use file manager to save lyrics file with standardized path
+            created_path = self.file_manager.save_lyrics_file(video_id, lrc_content)
 
-            # Save using storage directly to avoid double base path
-            created_path = self.file_manager.storage.save_file(lyrics_bytes, relative_lyrics_path)
+            # Get the relative path that was actually used
+            relative_lyrics_path = self.file_manager.get_relative_path_lyrics(video_id)
 
-            # Verify file was actually created using relative path
+            # Verify file was actually created
             if not self.file_manager.storage.file_exists(relative_lyrics_path):
                 raise Exception(f"LRC file creation failed - file does not exist at: {created_path}")
 
@@ -321,7 +296,9 @@ class TranscriptionConsumer:
 
     def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> None:
         self.logger.debug(f"[{video_id}] - Step 4: Updating Elasticsearch with results.")
-        success = self.es_updater.update_song_document(video_id=video_id, lyrics_path=lyrics_path, processing_metadata=processing_metadata)
+        # Use relative path for Elasticsearch storage
+        relative_lyrics_path = self.file_manager.get_relative_path_lyrics(video_id)
+        success = self.es_updater.update_song_document(video_id=video_id, lyrics_path=relative_lyrics_path, processing_metadata=processing_metadata)
         if not success:
             raise Exception("Failed to update Elasticsearch with transcription results")
         self.logger.debug(f"[{video_id}] - Elasticsearch document updated successfully.")
