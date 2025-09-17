@@ -4,6 +4,7 @@ All configuration settings for the YouTube service in one place
 """
 import os
 import logging
+from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -54,10 +55,10 @@ class YouTubeServiceConfig:
     KAFKA_TOPIC_DOWNLOAD_FAILED: str = os.getenv("KAFKA_TOPIC_DOWNLOAD_FAILED", "song.download.failed")
 
     # ===== Storage Configuration =====
-    SHARED_STORAGE_PATH: str = os.getenv("SHARED_STORAGE_PATH", "./data/audio")
+    SHARED_STORAGE_PATH: str = os.getenv("SHARED_STORAGE_PATH", str(Path("data") / "audio"))
 
     # ===== YTDLP Configuration =====
-    YTDLP_OUTPUT_TEMPLATE: str = os.getenv("YTDLP_OUTPUT_TEMPLATE", "./data/audio/%(id)s/original.%(ext)s")
+    YTDLP_OUTPUT_TEMPLATE: str = os.getenv("YTDLP_OUTPUT_TEMPLATE", str(Path("data") / "audio" / "%(id)s" / "original.%(ext)s"))
     YTDLP_AUDIO_FORMAT: str = os.getenv("YTDLP_AUDIO_FORMAT", "mp3")
     YTDLP_AUDIO_QUALITY: str = os.getenv("YTDLP_AUDIO_QUALITY", "128K")
 

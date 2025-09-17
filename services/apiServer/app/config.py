@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import List, Optional
 
 
@@ -28,8 +29,8 @@ class APIServerConfig:
         self.youtube_service_url: str = os.getenv("YOUTUBE_SERVICE_URL", "http://youtube-service:8000")
 
         # --- Shared Storage Configuration ---
-        self.shared_storage_base_path: str = os.getenv("SHARED_STORAGE_BASE_PATH", "/shared")
-        self.shared_audio_path: str = os.getenv("SHARED_AUDIO_PATH", "/shared/audio")
+        self.shared_storage_base_path: str = os.getenv("SHARED_STORAGE_BASE_PATH", str(Path("shared")))
+        self.shared_audio_path: str = os.getenv("SHARED_AUDIO_PATH", str(Path("shared") / "audio"))
 
         # --- Logging Configuration ---
         self.log_level: str = os.getenv("LOG_LEVEL", "INFO")
