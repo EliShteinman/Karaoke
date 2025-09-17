@@ -1,4 +1,3 @@
-import os
 import time
 from typing import Dict, Any, Optional
 
@@ -6,26 +5,29 @@ import numpy as np
 from faster_whisper import WhisperModel
 
 from shared.utils.logger import Logger
+
+# Import config and models
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
 from services.transcriptionService.app.models import TranscriptionOutput, TranscriptionResult, ProcessingMetadata, TranscriptionSegment
 
 class SpeechToTextService:
     def __init__(self) -> None:
         self.logger = Logger.get_logger(__name__)
+        self.config = TranscriptionServiceConfig()
 
-        model_name = os.getenv("STT_MODEL_NAME", "large-v3")
-        device = os.getenv("STT_DEVICE", "cpu")
-        compute_type = os.getenv("STT_COMPUTE_TYPE", "int8")
-
-        self.model_name: str = model_name
+        self.model_name: str = self.config.stt_model_name
         self.model: Optional[WhisperModel] = None
         
         try:
-            self.logger.info(f"Loading Speech-to-Text model: {model_name} (device: {device}, compute: {compute_type})")
-            self.model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            self.logger.info(f"Loading Speech-to-Text model: {self.config.stt_model_name} (device: {self.config.stt_device}, compute: {self.config.stt_compute_type})")
+            self.model = WhisperModel(
+                self.config.stt_model_name, 
+                device=self.config.stt_device, 
+                compute_type=self.config.stt_compute_type
+            )
             self.logger.info("Speech-to-Text model loaded successfully.")
         except Exception as e:
-            self.logger.critical(f"Failed to load Speech-to-Text model '{model_name}'. Error: {e}")
-            self.logger.error(f"Model loading error details: {str(e)}")
+            self.logger.critical(f"Failed to load Speech-to-Text model '{self.model_name}'. Error: {e}")
             raise
 
     def transcribe_audio(self, audio_path: str) -> TranscriptionOutput:
@@ -33,8 +35,15 @@ class SpeechToTextService:
             self.logger.error("SpeechToTextService is not properly initialized; model is not loaded.")
             raise RuntimeError("SpeechToTextService is not properly initialized; model is not loaded.")
 
+        self.logger.info(f"Starting transcription process for audio file: {audio_path}")
+        self.logger.debug(f"Model configuration: {self.model_name} (device: {self.config.stt_device}, compute: {self.config.stt_compute_type})")
+
+        # Use auto-detection for better multilingual support
+        # This allows Whisper to detect the actual language of the audio
+        preferred_language = None  # Let Whisper auto-detect the language
+
         transcription_params: Dict[str, Any] = {
-            "language": None,
+            "language": preferred_language,  # Single language code or None for auto-detection
             "beam_size": 5,
             "word_timestamps": True,
             "vad_filter": True,
@@ -47,40 +56,38 @@ class SpeechToTextService:
             }
         }
 
+        self.logger.debug(f"Transcription parameters: {transcription_params}")
         start_time = time.time()
-        
+
         try:
-            self.logger.debug(f"Starting transcription for: {audio_path}")
+            self.logger.debug(f"Initiating Whisper transcription for: {audio_path}")
             segments_iterator, info = self.model.transcribe(audio_path, **transcription_params)
+
+            self.logger.info(f"Audio analysis complete. Detected language: {info.language} (confidence: {info.language_probability:.4f})")
+            self.logger.debug(f"Audio duration: {info.duration:.2f} seconds")
 
             segments = []
             word_count = 0
             all_word_probabilities = []
 
-            for seg in segments_iterator:
-                segment = TranscriptionSegment(
-                    start=seg.start,
-                    end=seg.end,
-                    text=seg.text.strip()
-                )
+            self.logger.debug("Processing transcription segments...")
+            for i, seg in enumerate(segments_iterator):
+                segment = TranscriptionSegment(start=seg.start, end=seg.end, text=seg.text.strip())
                 segments.append(segment)
                 if seg.words:
                     word_count += len(seg.words)
                     all_word_probabilities.extend([word.probability for word in seg.words])
 
+                if i % 10 == 0:  # Log every 10th segment to avoid spam
+                    self.logger.debug(f"Processed segment {i + 1}: [{seg.start:.2f}s - {seg.end:.2f}s] '{seg.text.strip()[:50]}{'...' if len(seg.text.strip()) > 50 else ''}'")
+
             processing_time = time.time() - start_time
-            self.logger.debug(f"Transcription completed in {processing_time:.2f} seconds.")
+            confidence_score = float(np.mean(all_word_probabilities)) if all_word_probabilities else 0.0
 
-            if all_word_probabilities:
-                confidence_score = float(np.mean(all_word_probabilities))
-            else:
-                confidence_score = 0.0
+            self.logger.info(f"Transcription completed successfully in {processing_time:.2f} seconds")
+            self.logger.info(f"Results: {len(segments)} segments, {word_count} words, average confidence: {confidence_score:.4f}")
 
-            transcription_result = TranscriptionResult(
-                segments=segments,
-                full_text=" ".join([s.text for s in segments])
-            )
-
+            transcription_result = TranscriptionResult(segments=segments, full_text=" ".join([s.text for s in segments]))
             processing_metadata = ProcessingMetadata(
                 processing_time=round(processing_time, 2),
                 confidence_score=round(confidence_score, 4),
@@ -92,12 +99,9 @@ class SpeechToTextService:
                 duration_seconds=info.duration
             )
 
-            result = TranscriptionOutput(
-                transcription_result=transcription_result,
-                processing_metadata=processing_metadata
-            )
-            return result
+            self.logger.debug(f"Processing metadata: {processing_metadata.dict()}")
+            return TranscriptionOutput(transcription_result=transcription_result, processing_metadata=processing_metadata)
         except Exception as e:
-            self.logger.error(f"An error occurred during audio transcription for file {audio_path}. Error: {e}")
-            self.logger.error(f"Transcription error details: {str(e)}")
+            self.logger.error(f"Transcription failed for file {audio_path}. Error: {e}")
+            self.logger.debug(f"Transcription error traceback: {str(e)}")
             raise
