@@ -7,6 +7,9 @@ logger = StreamlitConfig.get_logger(__name__)
 st.set_page_config(page_title="חיפוש שירים", page_icon="🔍")
 st.title("🔍 חיפוש והורדת שירים")
 
+logger.info("Search page loaded")
+logger.debug("Search page: Initializing search page components")
+
 # Initialize session state variables
 if 'search_results' not in st.session_state:
     st.session_state['search_results'] = []
@@ -35,6 +38,7 @@ if submit_button and query:
 
 # --- Results Display ---
 if st.session_state['search_results']:
+    logger.debug(f"Search page: Displaying {len(st.session_state['search_results'])} search results")
     st.markdown("--- ")
     st.subheader("תוצאות החיפוש")
 

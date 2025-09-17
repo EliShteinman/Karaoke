@@ -48,7 +48,8 @@ def search(query: str) -> List[Dict[str, Any]]:
     Returns:
         List of search results as dictionaries
     """
-    logger.info(f"Searching for: '{query}' (cache miss)")
+    logger.info(f"API Client: Starting search for query: '{query}' (cache miss)")
+    logger.debug(f"API Client: Search function called with query: '{query}'")
 
     url = f"{API_BASE_URL}/search"
     request_data = None
@@ -75,7 +76,8 @@ def search(query: str) -> List[Dict[str, Any]]:
         search_response = SearchResponse(**response_data)
 
         results = [result.model_dump() for result in search_response.results]
-        logger.info(f"Found {len(results)} results for '{query}'")
+        logger.info(f"API Client: Successfully completed search for '{query}', found {len(results)} results")
+        logger.debug(f"API Client: Search results: {[r.get('title', 'N/A') for r in results]}")
         return results
 
     except ValidationError as e:
@@ -107,7 +109,8 @@ def download_song(song_details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
     video_id = song_details.get('video_id', 'N/A')
     title = song_details.get('title', 'N/A')
-    logger.info(f"Requesting download for song: '{title}' (video_id: {video_id})")
+    logger.info(f"API Client: Starting download request for song: '{title}' (video_id: {video_id})")
+    logger.debug(f"API Client: Download function called with song_details: {song_details}")
 
     url = f"{API_BASE_URL}/download"
     request_data = None
@@ -133,7 +136,8 @@ def download_song(song_details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         response_data = response.json()
         download_response = DownloadResponse(**response_data)
 
-        logger.info(f"Successfully queued download for '{title}'")
+        logger.info(f"API Client: Successfully queued download for '{title}' (video_id: {video_id})")
+        logger.debug(f"API Client: Download response: {download_response.model_dump()}")
         return download_response.model_dump()
 
     except ValidationError as e:

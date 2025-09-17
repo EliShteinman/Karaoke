@@ -115,16 +115,26 @@ class SongRepository:
         Returns:
             List[Dict]: List of all song documents with video_id included
         """
-        search_params = {
-            "sort": [{"created_at": {"order": "desc"}}]  # Sort by newest first
-        }
-
         results = []
-        async for hit in self.es.stream_all_documents(**search_params):
+        async for hit in self.es.stream_all_documents():
             song = hit["_source"]
             song["video_id"] = hit["_id"]
             results.append(song)
 
+        # Sort by created_at desc after fetching (since ES service doesn't support sort in stream)
+        # Handle both datetime objects and ISO strings
+        def get_sort_key(song):
+            created_at = song.get("created_at")
+            if created_at is None:
+                return datetime.min.replace(tzinfo=timezone.utc)
+            if isinstance(created_at, str):
+                try:
+                    return datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                except:
+                    return datetime.min.replace(tzinfo=timezone.utc)
+            return created_at
+
+        results.sort(key=get_sort_key, reverse=True)
         return results
 
     async def get_songs_by_status(self, status: str) -> List[Dict]:

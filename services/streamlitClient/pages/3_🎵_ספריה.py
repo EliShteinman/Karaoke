@@ -10,6 +10,7 @@ st.set_page_config(page_title="ספריית השירים", page_icon="🎵")
 st.title("🎵 ספריית השירים")
 
 logger.info("Library page loaded.")
+logger.debug("Library page: Initializing library page components")
 
 def get_status_color(status: str) -> str:
     """Get color for status indicator"""

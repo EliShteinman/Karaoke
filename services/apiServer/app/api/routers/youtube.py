@@ -21,8 +21,10 @@ async def search_youtube(search_request: schemas.SearchRequest) -> schemas.Searc
         logger.info(f"Router: Forwarding search request to YouTube Service for query: '{search_request.query}'")
         response = await youtube_service_client.post("/search", json=search_request.model_dump(mode='json'))
         response.raise_for_status()  # Raises an exception for 4xx/5xx responses
-        logger.info("Router: Successfully received search results from YouTube Service.")
-        return response.json()
+        result = response.json()
+        logger.info(f"Router: Successfully received search results from YouTube Service with {len(result.get('videos', []))} videos.")
+        logger.debug(f"Router: Search response for query '{search_request.query}': {len(result.get('videos', []))} results")
+        return result
     except httpx.RequestError as e:
         logger.error(f"Router: Could not connect to YouTube Service. Error: {e}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="YouTube Service is unavailable.")
@@ -48,8 +50,10 @@ async def queue_download(download_request: schemas.DownloadRequest) -> schemas.D
         logger.info(f"Router: Forwarding download request to YouTube Service for video_id: {download_request.video_id}")
         response = await youtube_service_client.post("/download", json=download_request.model_dump(mode='json'))
         response.raise_for_status()
+        result = response.json()
         logger.info(f"Router: Successfully received '202 Accepted' from YouTube Service for video_id: {download_request.video_id}")
-        return response.json()
+        logger.debug(f"Router: Download response for video_id {download_request.video_id}: {result}")
+        return result
     except httpx.RequestError as e:
         logger.error(f"Router: Could not connect to YouTube Service. Error: {e}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="YouTube Service is unavailable.")

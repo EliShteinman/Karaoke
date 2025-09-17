@@ -11,6 +11,9 @@ logger = StreamlitConfig.get_logger(__name__)
 
 st.set_page_config(page_title="נגן קריוקי", page_icon="🎤", layout="wide")
 
+logger.info("Karaoke player page accessed")
+logger.debug("Karaoke player: Initializing player page")
+
 # --- Initial check for a selected song ---
 if 'song_to_play' not in st.session_state or not st.session_state['song_to_play']:
     logger.warning("Karaoke player page loaded without a selected song.")
