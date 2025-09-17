@@ -103,11 +103,18 @@ async def get_all_songs() -> schemas.SongsResponse:
                 # Calculate progress for each song
                 progress = _calculate_progress(doc)
 
+                # Extract status - handle both detailed status object and legacy string status
+                status_data = doc.get("status", {})
+                if isinstance(status_data, dict):
+                    status_string = status_data.get("overall", "unknown")
+                else:
+                    status_string = str(status_data) if status_data else "unknown"
+
                 song_item = schemas.SongListItem(
                     video_id=doc.get("video_id", ""),
                     title=doc.get("title", ""),
                     artist=doc.get("artist", ""),
-                    status=doc.get("status", ""),
+                    status=status_string,
                     created_at=doc.get("created_at"),
                     thumbnail=doc.get("thumbnail", ""),
                     duration=doc.get("duration", 0),
