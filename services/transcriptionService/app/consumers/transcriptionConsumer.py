@@ -77,13 +77,20 @@ class TranscriptionConsumer:
         video_id: Optional[str] = None
         try:
             self.logger.debug(f"Raw message received: {msg}")
-            data = msg.get("value", {})
+            message_value = msg.get("value", {})
+
+            # Extract data from the nested 'data' field in the message
+            data = message_value.get("data", {})
+            if not data:
+                self.logger.warning(f"No 'data' field found in message. Full payload: {message_value}")
+                return
+
             try:
                 request_msg = KafkaRequestMessage(**data)
                 video_id = request_msg.video_id
                 self.logger.debug(f"[{video_id}] - Message validated successfully.")
             except Exception as validation_error:
-                self.logger.warning(f"Invalid message structure. Error: {validation_error}. Payload: {data}")
+                self.logger.warning(f"Invalid message structure. Error: {validation_error}. Message data: {data}")
                 return
 
             self.logger.info(f"[{video_id}] - Processing new transcription request.")
