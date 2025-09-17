@@ -7,8 +7,8 @@ from faster_whisper import WhisperModel
 from shared.utils.logger import Logger
 
 # Import config and models
-from ..services.config import TranscriptionServiceConfig
-from ..models import TranscriptionOutput, TranscriptionResult, ProcessingMetadata, TranscriptionSegment
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
+from services.transcriptionService.app.models import TranscriptionOutput, TranscriptionResult, ProcessingMetadata, TranscriptionSegment
 
 class SpeechToTextService:
     def __init__(self) -> None:
@@ -35,6 +35,9 @@ class SpeechToTextService:
             self.logger.error("SpeechToTextService is not properly initialized; model is not loaded.")
             raise RuntimeError("SpeechToTextService is not properly initialized; model is not loaded.")
 
+        self.logger.info(f"Starting transcription process for audio file: {audio_path}")
+        self.logger.debug(f"Model configuration: {self.model_name} (device: {self.config.stt_device}, compute: {self.config.stt_compute_type})")
+
         transcription_params: Dict[str, Any] = {
             "language": None,
             "beam_size": 5,
@@ -49,27 +52,36 @@ class SpeechToTextService:
             }
         }
 
+        self.logger.debug(f"Transcription parameters: {transcription_params}")
         start_time = time.time()
-        
+
         try:
-            self.logger.debug(f"Starting transcription for: {audio_path}")
+            self.logger.debug(f"Initiating Whisper transcription for: {audio_path}")
             segments_iterator, info = self.model.transcribe(audio_path, **transcription_params)
+
+            self.logger.info(f"Audio analysis complete. Detected language: {info.language} (confidence: {info.language_probability:.4f})")
+            self.logger.debug(f"Audio duration: {info.duration:.2f} seconds")
 
             segments = []
             word_count = 0
             all_word_probabilities = []
 
-            for seg in segments_iterator:
+            self.logger.debug("Processing transcription segments...")
+            for i, seg in enumerate(segments_iterator):
                 segment = TranscriptionSegment(start=seg.start, end=seg.end, text=seg.text.strip())
                 segments.append(segment)
                 if seg.words:
                     word_count += len(seg.words)
                     all_word_probabilities.extend([word.probability for word in seg.words])
 
-            processing_time = time.time() - start_time
-            self.logger.debug(f"Transcription completed in {processing_time:.2f} seconds.")
+                if i % 10 == 0:  # Log every 10th segment to avoid spam
+                    self.logger.debug(f"Processed segment {i + 1}: [{seg.start:.2f}s - {seg.end:.2f}s] '{seg.text.strip()[:50]}{'...' if len(seg.text.strip()) > 50 else ''}'")
 
+            processing_time = time.time() - start_time
             confidence_score = float(np.mean(all_word_probabilities)) if all_word_probabilities else 0.0
+
+            self.logger.info(f"Transcription completed successfully in {processing_time:.2f} seconds")
+            self.logger.info(f"Results: {len(segments)} segments, {word_count} words, average confidence: {confidence_score:.4f}")
 
             transcription_result = TranscriptionResult(segments=segments, full_text=" ".join([s.text for s in segments]))
             processing_metadata = ProcessingMetadata(
@@ -83,7 +95,9 @@ class SpeechToTextService:
                 duration_seconds=info.duration
             )
 
+            self.logger.debug(f"Processing metadata: {processing_metadata.dict()}")
             return TranscriptionOutput(transcription_result=transcription_result, processing_metadata=processing_metadata)
         except Exception as e:
-            self.logger.error(f"An error occurred during audio transcription for file {audio_path}. Error: {e}")
+            self.logger.error(f"Transcription failed for file {audio_path}. Error: {e}")
+            self.logger.debug(f"Transcription error traceback: {str(e)}")
             raise

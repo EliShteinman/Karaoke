@@ -11,19 +11,20 @@ from shared.storage import create_file_manager
 from shared.utils.logger import Logger
 
 # Import config and models
-from ..services.config import TranscriptionServiceConfig
-from ..models import (
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
+from services.transcriptionService.app.models import (
     KafkaRequestMessage,
     KafkaDoneMessage,
     KafkaFailedMessage,
     ErrorDetails,
     LRCMetadata,
     TranscriptionOutput,
-    ElasticsearchSongDocument
+    ElasticsearchSongDocument,
+    ProcessingMetadata
 )
-from ..services.elasticsearch_updater import ElasticsearchUpdater
-from ..services.lrc_generator import create_lrc_file
-from ..services.speech_to_text import SpeechToTextService
+from services.transcriptionService.app.services.elasticsearch_updater import ElasticsearchUpdater
+from services.transcriptionService.app.services.lrc_generator import create_lrc_file
+from services.transcriptionService.app.services.speech_to_text import SpeechToTextService
 
 
 class TranscriptionConsumer:
@@ -128,7 +129,7 @@ class TranscriptionConsumer:
         self.logger.debug(f"[{video_id}] - LRC file created at: {created_path}")
         return created_path
 
-    def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, processing_metadata) -> None:
+    def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> None:
         self.logger.debug(f"[{video_id}] - Step 4: Updating Elasticsearch with results.")
         success = self.es_updater.update_song_document(video_id=video_id, lyrics_path=lyrics_path, processing_metadata=processing_metadata)
         if not success:

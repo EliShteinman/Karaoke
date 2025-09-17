@@ -11,8 +11,8 @@ from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
 
 # Import config and models
-from ..services.config import TranscriptionServiceConfig
-from ..models import (
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
+from services.transcriptionService.app.models import (
     ElasticsearchSongDocument,
     ProcessingMetadata,
     ErrorDetails
