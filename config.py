@@ -53,7 +53,10 @@ class YouTubeServiceConfig:
         self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
         # Storage configuration - REQUIRED by shared/storage tools
-        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("shared")))
+        # Use absolute path to avoid platform and current directory issues
+        project_root = Path(__file__).parent.absolute()
+        default_storage_path = project_root / "data" / "audio"
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(default_storage_path))
 
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):
@@ -87,7 +90,10 @@ class AudioServiceConfig:
         self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
         # Storage configuration - REQUIRED by shared/storage tools
-        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("shared")))
+        # Use absolute path to avoid platform and current directory issues
+        project_root = Path(__file__).parent.absolute()
+        default_storage_path = project_root / "data" / "audio"
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(default_storage_path))
 
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):
@@ -119,7 +125,10 @@ class TranscriptionServiceConfig:
         self.elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
         # Storage configuration - REQUIRED by shared/storage tools
-        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(Path("shared")))
+        # Use absolute path to avoid platform and current directory issues
+        project_root = Path(__file__).parent.absolute()
+        default_storage_path = project_root / "data" / "audio"
+        self.storage_base_path = os.getenv("STORAGE_BASE_PATH", str(default_storage_path))
 
         # Service-specific settings - ADD THESE AS NEEDED
         # Example service-specific variables (uncomment and modify as needed):

@@ -76,7 +76,11 @@ class VolumeFileStorage(FileStorageInterface):
         Args:
             base_path: Base directory for file storage (default: shared)
         """
-        self.base_path = PathManager.normalize_path(base_path)
+        # For base_path, we always want an absolute path
+        if Path(base_path).is_absolute():
+            self.base_path = Path(base_path).resolve()
+        else:
+            self.base_path = Path(base_path).resolve()
         self.base_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"VolumeFileStorage initialized with base path: {self.base_path}")
 
@@ -85,7 +89,7 @@ class VolumeFileStorage(FileStorageInterface):
         path_obj = PathManager.normalize_path(file_path)
         if path_obj.is_absolute():
             return path_obj
-        return self.base_path / PathManager.ensure_relative_path(file_path)
+        return self.base_path / path_obj
 
     def save_file(self, file_content: bytes, file_path: str) -> str:
         """Save file content and return the actual path"""
@@ -203,6 +207,9 @@ class KaraokeFileManager:
     """
     High-level file manager for the Karaoke project
     Handles all file operations for songs (audio, lyrics, etc.)
+
+    This is the SINGLE SOURCE OF TRUTH for all file path operations.
+    All services must use these methods for path construction and resolution.
     """
 
     def __init__(self, storage: FileStorageInterface):
@@ -215,43 +222,60 @@ class KaraokeFileManager:
         self.storage = storage
         logger.info(f"KaraokeFileManager initialized with {type(storage).__name__}")
 
+    def get_relative_path_original(self, video_id: str) -> str:
+        """Get standardized relative path for original audio file"""
+        return build_relative_path("audio", video_id, "original.mp3")
+
+    def get_relative_path_vocals_removed(self, video_id: str) -> str:
+        """Get standardized relative path for vocals removed audio file"""
+        return build_relative_path("audio", video_id, "vocals_removed.mp3")
+
+    def get_relative_path_lyrics(self, video_id: str) -> str:
+        """Get standardized relative path for lyrics file"""
+        return build_relative_path("audio", video_id, "lyrics.lrc")
+
+    def get_full_path(self, relative_path: str) -> str:
+        """Convert relative path to full absolute path for current platform"""
+        full_path = self.storage._get_full_path(relative_path)
+        return str(full_path)
+
     def save_original_audio(self, video_id: str, audio_content: bytes) -> str:
         """Save original downloaded audio file"""
-        file_path = build_relative_path("audio", video_id, "original.mp3")
+        file_path = self.get_relative_path_original(video_id)
         return self.storage.save_file(audio_content, file_path)
 
     def save_vocals_removed_audio(self, video_id: str, audio_content: bytes) -> str:
         """Save processed audio with vocals removed"""
-        file_path = build_relative_path("audio", video_id, "vocals_removed.mp3")
+        file_path = self.get_relative_path_vocals_removed(video_id)
         return self.storage.save_file(audio_content, file_path)
 
     def save_lyrics_file(self, video_id: str, lyrics_content: str) -> str:
         """Save LRC lyrics file"""
-        file_path = build_relative_path("audio", video_id, "lyrics.lrc")
+        file_path = self.get_relative_path_lyrics(video_id)
         lyrics_bytes = lyrics_content.encode("utf-8")
         return self.storage.save_file(lyrics_bytes, file_path)
 
     def get_original_audio(self, video_id: str) -> bytes:
         """Get original audio file content"""
-        file_path = build_relative_path("audio", video_id, "original.mp3")
+        file_path = self.get_relative_path_original(video_id)
         return self.storage.read_file(file_path)
 
     def get_vocals_removed_audio(self, video_id: str) -> bytes:
         """Get processed audio file content"""
-        file_path = build_relative_path("audio", video_id, "vocals_removed.mp3")
+        file_path = self.get_relative_path_vocals_removed(video_id)
         return self.storage.read_file(file_path)
 
     def get_lyrics(self, video_id: str) -> str:
         """Get lyrics file content as string"""
-        file_path = build_relative_path("audio", video_id, "lyrics.lrc")
+        file_path = self.get_relative_path_lyrics(video_id)
         return self.storage.read_text_file(file_path)
 
     def get_song_files_info(self, video_id: str) -> Dict[str, Dict]:
         """Get information about all files for a song"""
         files = {
-            "original": build_relative_path("audio", video_id, "original.mp3"),
-            "vocals_removed": build_relative_path("audio", video_id, "vocals_removed.mp3"),
-            "lyrics": build_relative_path("audio", video_id, "lyrics.lrc"),
+            "original": self.get_relative_path_original(video_id),
+            "vocals_removed": self.get_relative_path_vocals_removed(video_id),
+            "lyrics": self.get_relative_path_lyrics(video_id),
         }
 
         info = {}
@@ -273,8 +297,8 @@ class KaraokeFileManager:
 
     def is_song_ready_for_karaoke(self, video_id: str) -> bool:
         """Check if song has both required files for karaoke"""
-        vocals_path = build_relative_path("audio", video_id, "vocals_removed.mp3")
-        lyrics_path = build_relative_path("audio", video_id, "lyrics.lrc")
+        vocals_path = self.get_relative_path_vocals_removed(video_id)
+        lyrics_path = self.get_relative_path_lyrics(video_id)
 
         return (
             self.storage.file_exists(vocals_path)
@@ -304,9 +328,9 @@ class KaraokeFileManager:
     def delete_song_files(self, video_id: str) -> Dict[str, bool]:
         """Delete all files for a song and return deletion status"""
         files = {
-            "original": build_relative_path("audio", video_id, "original.mp3"),
-            "vocals_removed": build_relative_path("audio", video_id, "vocals_removed.mp3"),
-            "lyrics": build_relative_path("audio", video_id, "lyrics.lrc"),
+            "original": self.get_relative_path_original(video_id),
+            "vocals_removed": self.get_relative_path_vocals_removed(video_id),
+            "lyrics": self.get_relative_path_lyrics(video_id),
         }
 
         results = {}

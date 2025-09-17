@@ -9,6 +9,7 @@ from shared.repositories.factory import RepositoryFactory
 from shared.repositories.song_repository_sync import SongRepositorySync
 from shared.storage.file_storage import create_file_manager
 from shared.utils.logger import Logger
+from shared.utils.data_utils import normalize_elasticsearch_song_document
 
 # Import config and models
 from services.transcriptionService.app.services.config import TranscriptionServiceConfig
@@ -85,7 +86,7 @@ class ElasticsearchUpdater:
             self.logger.debug(f"[{video_id}] - Raw song data from repository: {song_data}")
 
             # Convert flat structure to nested structure for our model
-            normalized_data = self._normalize_song_data(song_data)
+            normalized_data = normalize_elasticsearch_song_document(song_data)
             self.logger.debug(f"[{video_id}] - Normalized song data: {normalized_data}")
 
             song_document = ElasticsearchSongDocument(**normalized_data)
@@ -95,54 +96,6 @@ class ElasticsearchUpdater:
             self.logger.error(f"[{video_id}] - Failed to get and parse song document. Error: {e}")
             return None
 
-    def _normalize_song_data(self, raw_data: dict) -> dict:
-        """
-        Convert flat Elasticsearch data structure to nested structure expected by our model
-        """
-        normalized = {}
-
-        # Basic fields
-        for field in ['video_id', 'title', 'artist', 'channel', 'duration', 'thumbnail', 'search_text', 'created_at', 'updated_at']:
-            if field in raw_data:
-                normalized[field] = raw_data[field]
-
-        # Handle status - convert flat status fields to nested object
-        status = {}
-        for status_field in ['overall', 'download', 'audio_processing', 'transcription']:
-            # Try nested first, then flat structure
-            if 'status' in raw_data and isinstance(raw_data['status'], dict):
-                status[status_field] = raw_data['status'].get(status_field, 'pending')
-            elif f'status.{status_field}' in raw_data:
-                status[status_field] = raw_data[f'status.{status_field}']
-            else:
-                status[status_field] = 'pending'
-        normalized['status'] = status
-
-        # Handle file_paths - convert flat file_paths fields to nested object
-        file_paths = {}
-        for path_type in ['original', 'vocals_removed', 'lyrics']:
-            # Try flat structure first (this is the actual format from repository)
-            if f'file_paths.{path_type}' in raw_data:
-                file_paths[path_type] = raw_data[f'file_paths.{path_type}']
-            # Try nested structure as fallback
-            elif 'file_paths' in raw_data and isinstance(raw_data['file_paths'], dict):
-                if path_type in raw_data['file_paths']:
-                    file_paths[path_type] = raw_data['file_paths'][path_type]
-        normalized['file_paths'] = file_paths
-
-        # Handle metadata - convert flat metadata fields to nested object
-        metadata = {}
-        if 'metadata' in raw_data and isinstance(raw_data['metadata'], dict):
-            metadata = raw_data['metadata']
-        else:
-            # Look for flat metadata fields
-            for key, value in raw_data.items():
-                if key.startswith('metadata.'):
-                    metadata_key = key.replace('metadata.', '')
-                    metadata[metadata_key] = value
-        normalized['metadata'] = metadata
-
-        return normalized
 
     def update_song_document(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> bool:
         try:

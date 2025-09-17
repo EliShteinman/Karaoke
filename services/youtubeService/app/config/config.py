@@ -55,7 +55,7 @@ class YouTubeServiceConfig:
     KAFKA_TOPIC_DOWNLOAD_FAILED: str = os.getenv("KAFKA_TOPIC_DOWNLOAD_FAILED", "song.download.failed")
 
     # ===== Storage Configuration =====
-    SHARED_STORAGE_PATH: str = os.getenv("SHARED_STORAGE_PATH", str(Path("data") / "audio"))
+    SHARED_STORAGE_PATH: str = os.getenv("SHARED_STORAGE_PATH", "data")
 
     # ===== YTDLP Configuration =====
     YTDLP_OUTPUT_TEMPLATE: str = os.getenv("YTDLP_OUTPUT_TEMPLATE", str(Path("data") / "audio" / "%(id)s" / "original.%(ext)s"))

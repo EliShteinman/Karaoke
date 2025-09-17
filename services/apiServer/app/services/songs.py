@@ -4,6 +4,7 @@ import os
 import zipfile
 from shared.repositories.factory import RepositoryFactory
 from shared.storage.file_storage import create_file_manager
+from shared.utils.data_utils import normalize_elasticsearch_song_document
 from services.apiServer.app.models import schemas
 from services.apiServer.app.config import settings
 from shared.utils.logger import Logger
@@ -100,8 +101,11 @@ async def get_all_songs() -> schemas.SongsResponse:
         song_list: List[schemas.SongListItem] = []
         for doc in all_songs_docs:
             try:
+                # Normalize document structure for consistent access
+                normalized_doc = normalize_elasticsearch_song_document(doc)
+
                 # Calculate progress for each song
-                progress = _calculate_progress(doc)
+                progress = _calculate_progress(normalized_doc)
 
                 # Extract status - handle both detailed status object and legacy string status
                 status_data = doc.get("status", {})
@@ -155,10 +159,13 @@ async def get_song_status(video_id: str) -> Optional[schemas.StatusResponse]:
 
         logger.info(f"Service: Found document for video_id: {video_id}.")
 
+        # Normalize document structure for consistent access
+        normalized_doc = normalize_elasticsearch_song_document(song_doc)
+
         # Extract detailed status and calculate readiness
-        status_details = _extract_status_details(song_doc)
-        is_ready = _calculate_is_ready(song_doc)
-        progress = _calculate_progress(song_doc)  # Keep for backward compatibility
+        status_details = _extract_status_details(normalized_doc)
+        is_ready = _calculate_is_ready(normalized_doc)
+        progress = _calculate_progress(normalized_doc)  # Keep for backward compatibility
 
         return schemas.StatusResponse(
             video_id=song_doc["video_id"],

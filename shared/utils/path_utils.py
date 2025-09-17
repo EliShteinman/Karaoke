@@ -24,12 +24,20 @@ class PathManager:
             path: Input path as string or Path object
 
         Returns:
-            Normalized Path object
+            Normalized Path object (preserves relative/absolute nature)
         """
         if isinstance(path, str):
             # Convert backslashes to forward slashes for consistent processing
             path = path.replace('\\', '/')
-        return Path(path).resolve()
+
+        path_obj = Path(path)
+
+        # Only resolve if it's already absolute, otherwise keep it relative
+        if path_obj.is_absolute():
+            return path_obj.resolve()
+        else:
+            # For relative paths, just normalize separators without resolving
+            return path_obj
 
     @staticmethod
     def join(*parts: Union[str, Path]) -> Path:
