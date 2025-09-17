@@ -116,10 +116,13 @@ class AudioProcessingService:
             bool: True if processing succeeded, False otherwise
         """
         try:
-            # Extract video_id from message
-            video_id = message["value"].get("video_id")
+            # Extract video_id from message - it's nested in the "data" field
+            message_data = message["value"].get("data", {})
+            video_id = message_data.get("video_id")
+
             if not video_id:
-                logger.error(f"No video_id found in message: {message}")
+                logger.error(f"No video_id found in message data. Full message: {message}")
+                logger.error(f"Expected structure: message['value']['data']['video_id']")
                 return False
 
             logger.info(f"Processing audio for video_id: {video_id}")
@@ -131,7 +134,8 @@ class AudioProcessingService:
             logger.error(f"Error processing message {message}: {e}")
             # Try to extract video_id for error reporting
             try:
-                video_id = message["value"].get("video_id")
+                message_data = message["value"].get("data", {})
+                video_id = message_data.get("video_id")
                 if video_id:
                     self._report_error(video_id, "MESSAGE_PROCESSING_ERROR", str(e))
             except:
@@ -166,10 +170,32 @@ class AudioProcessingService:
                 self._report_error(video_id, "ORIGINAL_FILE_NOT_FOUND", f"Original file path not found for video_id: {video_id}")
                 return False
 
+            # Handle path resolution - check if it's already absolute or needs to be made relative to project root
+            if not os.path.isabs(original_path):
+                # If it's a relative path, it might be relative to project root
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                absolute_path = os.path.join(project_root, original_path)
+            else:
+                absolute_path = original_path
+
             # Verify original file exists
-            if not os.path.exists(original_path):
-                self._report_error(video_id, "ORIGINAL_FILE_MISSING", f"Original file does not exist: {original_path}")
-                return False
+            if not os.path.exists(absolute_path):
+                # Try alternative paths if the first doesn't work
+                if not os.path.isabs(original_path):
+                    # Try current working directory
+                    cwd_path = os.path.join(os.getcwd(), original_path)
+                    if os.path.exists(cwd_path):
+                        absolute_path = cwd_path
+                    else:
+                        self._report_error(video_id, "ORIGINAL_FILE_MISSING",
+                                         f"Original file does not exist. Tried: {original_path}, {absolute_path}, {cwd_path}")
+                        return False
+                else:
+                    self._report_error(video_id, "ORIGINAL_FILE_MISSING", f"Original file does not exist: {absolute_path}")
+                    return False
+
+            logger.info(f"Found original file at: {absolute_path}")
+            original_path = absolute_path  # Use the resolved absolute path
 
             # Define output path with fixed filename
             output_dir = os.path.dirname(original_path)
@@ -179,8 +205,20 @@ class AudioProcessingService:
 
             # Perform vocal separation
             processing_start = datetime.now()
-            separate_vocals(original_path, save_path=output_dir)
-            processing_time = (datetime.now() - processing_start).total_seconds()
+            try:
+                logger.info(f"Starting vocal separation with Demucs...")
+                vocals_removed_result, vocals_only_result = separate_vocals(original_path, save_path=output_dir)
+                processing_time = (datetime.now() - processing_start).total_seconds()
+                logger.info(f"Vocal separation completed in {processing_time:.2f}s")
+
+                # Update the vocals_removed_path to the actual result from the function
+                vocals_removed_path = vocals_removed_result
+
+            except Exception as e:
+                processing_time = (datetime.now() - processing_start).total_seconds()
+                logger.error(f"Vocal separation failed after {processing_time:.2f}s: {e}")
+                self._report_error(video_id, "VOCAL_SEPARATION_FAILED", f"Demucs processing failed: {str(e)}")
+                return False
 
             # Verify output file was created and has reasonable size
             if not os.path.exists(vocals_removed_path):
