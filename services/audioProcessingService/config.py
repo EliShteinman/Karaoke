@@ -17,10 +17,12 @@ class AudioProcessingServiceConfig:
 
     # --- Kafka Configuration ---
     kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-    kafka_consumer_group = os.getenv("KAFKA_CONSUMER_GROUP_AUDIO", "audio-processing-service-group")
+    kafka_consumer_group = os.getenv("KAFKA_CONSUMER_GROUP_AUDIO", "audio-processing-service-group-new") # <-- Changed group_id
     kafka_topic_audio_requested = os.getenv("KAFKA_TOPIC_AUDIO_REQUESTED", "audio.process.requested")
     kafka_topic_audio_processed = os.getenv("KAFKA_TOPIC_AUDIO_PROCESSED", "audio.vocals_processed")
     kafka_topic_audio_failed = os.getenv("KAFKA_TOPIC_AUDIO_FAILED", "audio.processing.failed")
+    # Add the topic to trigger the transcription service
+    kafka_topic_transcription_requested = os.getenv("KAFKA_TOPIC_TRANSCRIPTION_REQUESTED", "transcription.process.requested")
 
     # --- Elasticsearch Configuration ---
     elasticsearch_host = os.getenv("ELASTICSEARCH_HOST", "localhost")

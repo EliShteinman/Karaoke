@@ -1,9 +1,9 @@
 # ==============================================================================
-# TIER 3: TRANSCRIPTION SERVICE (Final)
-# Inherits from transcription base image - minimal, cache-optimized
+# TIER 3: AUDIO PROCESSING SERVICE (Final)
+# Inherits from audio processing base image - minimal, cache-optimized
 # ==============================================================================
 
-FROM transcription-base:latest
+FROM audio-processing-base:latest
 
 # Switch to root for file operations only
 USER root
@@ -11,7 +11,7 @@ USER root
 # Copy application code (this layer changes most frequently)
 # No heavy package installations here - all done in base image!
 COPY ./shared /app/shared
-COPY ./services/transcriptionService /app/services/transcriptionService
+COPY ./services/audioProcessingService /app/services/audioProcessingService
 
 # Set proper ownership
 RUN chown -R app:app /app
@@ -20,4 +20,4 @@ RUN chown -R app:app /app
 USER app
 
 # Run the worker service
-CMD ["python", "-m", "services.transcriptionService.app.main"]
+CMD ["python", "-m", "services.audioProcessingService.main"]
