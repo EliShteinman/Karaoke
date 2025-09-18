@@ -236,7 +236,16 @@ class StatusResponse(BaseModel):
 
 **פורמט:** קובץ ZIP המכיל:
 - `vocals_removed.wav` (קובץ שמע ללא ווקאל)
-- `lyrics.lrc` (קובץ כתוביות עם timestamps)
+- `lyrics.json` (קובץ JSON המכיל רשימה שטוחה של אובייקטי מילים עם תזמון מדויק)
+
+**מבנה לדוגמה של lyrics.json:**
+```json
+[
+  {"word": "We're", "start": 0.5, "end": 0.8, "probability": 0.95},
+  {"word": "no", "start": 0.9, "end": 1.1, "probability": 0.98},
+  {"word": "strangers", "start": 1.2, "end": 1.8, "probability": 0.99}
+]
+```
 
 ### בקשות HTTP ל-YouTube Service (פנימיות)
 
@@ -305,9 +314,9 @@ class StatusResponse(BaseModel):
 ### קריאת קבצי קריוקי מוכנים
 **נתיבים:**
 - **אודיו ללא ווקאל:** `/shared/audio/{video_id}/vocals_removed.wav`
-- **כתוביות:** `/shared/audio/{video_id}/lyrics.lrc`
+- **נתוני תמלול:** מאוחזרים מ-Elasticsearch metadata
 
-**מטרה:** יצירת קובץ ZIP להורדה ללקוח
+**מטרה:** יצירת קובץ ZIP עם אודיו וקובץ JSON של מילים עם תזמון להורדה ללקוח
 
 ## לוגיקת חישוב סטטוס פנימית
 

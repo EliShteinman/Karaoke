@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, List
 import os
 import zipfile
+import json
+import io
 from shared.repositories.factory import RepositoryFactory
 from shared.storage.file_storage import create_file_manager
 from shared.utils.data_utils import normalize_elasticsearch_song_document
@@ -187,35 +189,80 @@ async def get_song_status(video_id: str) -> Optional[schemas.StatusResponse]:
         raise
 
 async def create_song_zip_file(video_id: str) -> Optional[bytes]:
-    """Creates an in-memory ZIP package with the song's assets."""
+    """Creates an in-memory ZIP package with vocals_removed.wav and lyrics.json."""
     try:
-        logger.info(f"Service: Creating file manager for ZIP creation for video_id: {video_id}.")
+        logger.info(f"Service: Creating ZIP package with JSON lyrics for video_id: {video_id}.")
 
-        # Use centralized storage configuration
+        # Get song document from Elasticsearch
+        song_repo = RepositoryFactory.create_song_repository_from_config(settings, async_mode=True)
+        song_doc = await song_repo.get_song(video_id)
+
+        if not song_doc:
+            logger.error(f"Service: Song document not found for {video_id}.")
+            return None
+
+        # Normalize document structure for consistent access
+        normalized_doc = normalize_elasticsearch_song_document(song_doc)
+
+        # Extract file paths
+        file_paths = normalized_doc.get("file_paths", {})
+        vocals_removed_path = file_paths.get("vocals_removed")
+
+        if not vocals_removed_path:
+            logger.error(f"Service: No vocals_removed file path found for {video_id}.")
+            return None
+
+        # Get audio file content
         file_manager = create_file_manager(
             storage_type="volume",
             base_path=settings.shared_storage_base_path
         )
 
-        # Check song readiness before attempting to create package
-        if not file_manager.is_song_ready_for_karaoke(video_id):
-            logger.error(f"Service: Cannot create ZIP for {video_id}. Song is not ready.")
+        try:
+            vocals_content = file_manager.storage.read_file(vocals_removed_path)
+        except Exception as e:
+            logger.error(f"Service: Failed to read vocals_removed file for {video_id}. Error: {e}")
             return None
 
-        logger.info(f"Service: Song {video_id} is ready. Creating in-memory ZIP package.")
-        zip_content = file_manager.create_karaoke_package(video_id)
-        logger.info(f"Service: Successfully created ZIP package for {video_id} ({len(zip_content)} bytes).")
+        # Extract transcription segments and flatten to word list
+        metadata = normalized_doc.get("metadata", {})
+        transcription = metadata.get("transcription", {})
+        segments = transcription.get("segments", [])
+
+        if not segments:
+            logger.error(f"Service: No transcription segments found for {video_id}.")
+            return None
+
+        # Flatten all words from all segments into a single list
+        word_list = []
+        for segment in segments:
+            if isinstance(segment, dict) and "words" in segment and segment["words"]:
+                for word in segment["words"]:
+                    if isinstance(word, dict) and all(key in word for key in ["word", "start", "end", "probability"]):
+                        word_list.append({
+                            "word": word["word"],
+                            "start": word["start"],
+                            "end": word["end"],
+                            "probability": word["probability"]
+                        })
+
+        if not word_list:
+            logger.error(f"Service: No word-level timing data found for {video_id}.")
+            return None
+
+        # Convert word list to JSON string
+        lyrics_json = json.dumps(word_list, ensure_ascii=False, indent=2)
+
+        # Create ZIP in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr("vocals_removed.wav", vocals_content)
+            zip_file.writestr("lyrics.json", lyrics_json.encode("utf-8"))
+
+        zip_content = zip_buffer.getvalue()
+        logger.info(f"Service: Successfully created JSON karaoke package for {video_id} ({len(zip_content)} bytes, {len(word_list)} words).")
         return zip_content
 
-    except ValueError as e:
-        logger.error(f"Service: Value error during ZIP creation for {video_id}. Error: {e}")
-        return None
-    except FileNotFoundError as e:
-        logger.error(f"Service: Required files not found for {video_id}. Error: {e}")
-        return None
-    except PermissionError as e:
-        logger.error(f"Service: Permission denied accessing files for {video_id}. Error: {e}")
-        return None
     except Exception as e:
         logger.error(f"Service: An unexpected error occurred during ZIP creation for {video_id}. Error: {e}")
         return None
