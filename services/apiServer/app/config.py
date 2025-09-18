@@ -26,7 +26,7 @@ class APIServerConfig:
         self.elasticsearch_password: Optional[str] = os.getenv("ELASTICSEARCH_PASSWORD")
 
         # --- External Service URLs ---
-        self.youtube_service_url: str = os.getenv("YOUTUBE_SERVICE_URL", "http://youtube-service:8000")
+        self.youtube_service_url: str = os.getenv("YOUTUBE_SERVICE_URL", "http://localhost:8001")
 
         # --- Shared Storage Configuration ---
         self.shared_storage_base_path: str = os.getenv("SHARED_STORAGE_BASE_PATH", "data")
