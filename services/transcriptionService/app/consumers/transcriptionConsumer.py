@@ -34,8 +34,8 @@ class TranscriptionConsumer:
     """
 
     def __init__(self) -> None:
-        self.logger = Logger.get_logger(__name__)
         self.config = TranscriptionServiceConfig()
+        self.logger = Logger.get_logger(__name__)
 
         try:
             self.consumer: KafkaConsumerSync = KafkaConsumerSync(

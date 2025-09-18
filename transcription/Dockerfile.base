@@ -1,0 +1,19 @@
+# ==============================================================================
+# TIER 2: TRANSCRIPTION SERVICE BASE IMAGE (transcription-base)
+# Inherits from root base and adds faster-whisper dependencies
+# ==============================================================================
+
+FROM my-project-root-base:latest
+
+# Install transcription-specific heavy dependencies
+# These are isolated here to maximize Docker cache efficiency
+RUN pip install --no-cache-dir \
+    faster-whisper \
+    imageio-ffmpeg \
+    pydub \
+    soundfile \
+    nltk \
+    langdetect \
+    unidecode
+
+# This image serves as a base for transcription service - no CMD needed

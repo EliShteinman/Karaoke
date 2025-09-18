@@ -29,7 +29,7 @@ from services.transcriptionService.app.models import LRCMetadata
 # =====================================
 
 # Input audio file path (must exist)
-INPUT_AUDIO_PATH = "/Users/lyhwstynmn/פרוייקטים/python/Karaoke/data/audio/rgSvk335zis/vocals.wav"
+INPUT_AUDIO_PATH = "/Users/lyhwstynmn/פרוייקטים/python/Karaoke/data/audio/1VrXceBBuc8/vocals.wav"
 
 # Output directory for test results
 OUTPUT_DIR = "/Users/lyhwstynmn/פרוייקטים/python/Karaoke/services/transcriptionService/tests/output"

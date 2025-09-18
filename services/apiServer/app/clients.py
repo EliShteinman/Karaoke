@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 from services.apiServer.app.config import settings
 from shared.utils.logger import Logger
 
-logger = Logger.get_logger(name="api-server-clients")
+logger = Logger.get_logger(__name__)
 
 # YouTube Service HTTP Client
 youtube_service_client: httpx.AsyncClient = httpx.AsyncClient(

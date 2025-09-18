@@ -19,7 +19,8 @@ from shared.utils.logger import Logger
 from services.transcriptionService.app.consumers.transcriptionConsumer import TranscriptionConsumer
 
 # Initialize logger
-logger = Logger.get_logger(__name__)
+from services.transcriptionService.app.services.config import TranscriptionServiceConfig
+logger = TranscriptionServiceConfig.initialize_logger()
 
 # Global shutdown event for graceful service termination
 shutdown_event = Event()

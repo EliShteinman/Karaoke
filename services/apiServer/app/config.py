@@ -30,7 +30,7 @@ class APIServerConfig:
 
         # --- Shared Storage Configuration ---
         self.shared_storage_base_path: str = os.getenv("SHARED_STORAGE_BASE_PATH", "data")
-        self.shared_audio_path: str = os.getenv("SHARED_AUDIO_PATH", str(Path("shared") / "audio"))
+        self.shared_audio_path: str = os.getenv("SHARED_AUDIO_PATH", "audio")
 
         # --- Logging Configuration ---
         self.log_level: str = os.getenv("LOG_LEVEL", "INFO")
@@ -46,6 +46,18 @@ class APIServerConfig:
     def get_log_elasticsearch_url(self) -> str:
         """Get full Elasticsearch URL for logging."""
         return f"{self.log_elasticsearch_scheme}://{self.log_elasticsearch_host}:{self.log_elasticsearch_port}"
+
+    def initialize_logger(self):
+        """
+        Initialize the logger once with all required parameters.
+        Should be called by main.py before any other imports.
+        """
+        from shared.utils.logger import Logger
+        return Logger.get_logger(
+            name="api-server",
+            es_url=self.get_log_elasticsearch_url(),
+            index=self.log_elasticsearch_index,
+        )
 
 
 # Instantiate the settings object that will be used across the application

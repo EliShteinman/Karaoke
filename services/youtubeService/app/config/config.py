@@ -72,16 +72,18 @@ class YouTubeServiceConfig:
     SERVICE_NAME: str = "youtube_service"
 
     @classmethod
-    def get_logger_config(cls) -> dict:
+    def initialize_logger(cls):
         """
-        Get logger configuration parameters for the shared logger
+        Initialize the logger once with all required parameters.
+        Should be called by main.py before any other imports.
         """
-        return {
-            "name": cls.SERVICE_NAME,
-            "es_url": cls.LOG_ELASTICSEARCH_URL,
-            "index": cls.LOG_ELASTICSEARCH_INDEX,
-            "level": cls.LOG_LEVEL
-        }
+        from shared.utils.logger import Logger
+        return Logger.get_logger(
+            name=cls.SERVICE_NAME,
+            es_url=cls.LOG_ELASTICSEARCH_URL,
+            index=cls.LOG_ELASTICSEARCH_INDEX,
+            level=cls.LOG_LEVEL
+        )
 
 # Create a singleton config instance
 config = YouTubeServiceConfig()

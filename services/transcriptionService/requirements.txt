@@ -11,6 +11,9 @@ nltk
 langdetect
 unidecode
 
+# Data models
+pydantic
+
 # Infrastructure
 kafka-python
 elasticsearch

@@ -44,6 +44,7 @@ services:
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
+    platform: linux/amd64
     networks:
       - elastic_kafka
     environment:
@@ -84,12 +85,255 @@ services:
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=broker:9093
       - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
 
+  # =============================================================================
+  # KARAOKE APPLICATION SERVICES - MULTI-TIER BASE IMAGES
+  # =============================================================================
+
+  # TIER 1: Root base image with shared system dependencies and common packages
+  my-project-root-base:
+    build:
+      context: .
+      dockerfile: ./base/Dockerfile
+    image: my-project-root-base:latest
+
+  # TIER 2: Heavy service base images (inherit from root base)
+  transcription-base:
+    build:
+      context: .
+      dockerfile: ./transcription/Dockerfile.base
+    image: transcription-base:latest
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+
+  audio-processing-base:
+    build:
+      context: .
+      dockerfile: ./audio/Dockerfile.base
+    image: audio-processing-base:latest
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+
+  # =============================================================================
+  # TIER 3: FINAL APPLICATION SERVICES
+  # =============================================================================
+
+  api-server:
+    build:
+      context: .
+      dockerfile: ./services/apiServer/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_SERVER_PORT:-8000}:8000"
+    networks:
+      - elastic_kafka
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+      elasticsearch: { condition: service_healthy }
+      broker: { condition: service_started }
+    environment:
+      # Server Configuration
+      - HOST=0.0.0.0
+      - PORT=8000
+
+      # Elasticsearch Configuration
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+
+      # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
+
+      # Service URLs
+      - YOUTUBE_SERVICE_URL=${YOUTUBE_SERVICE_URL:-http://youtube-service:8001}
+
+      # File Storage Configuration
+      - SHARED_STORAGE_BASE_PATH=/app/data
+
+      # Add your custom environment variables here:
+      # - YOUR_CUSTOM_VAR=${YOUR_CUSTOM_VAR}
+    volumes:
+      - karaoke_data:/app/data
+
+  youtube-service:
+    build:
+      context: .
+      dockerfile: ./services/youtubeService/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${YOUTUBE_SERVICE_PORT:-8001}:8001"
+    networks:
+      - elastic_kafka
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+      elasticsearch: { condition: service_healthy }
+      broker: { condition: service_started }
+    environment:
+      # Server Configuration
+      - HOST=0.0.0.0
+      - PORT=8001
+
+      # Elasticsearch Configuration
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+
+      # Kafka Configuration
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:9093}
+
+      # YouTube API Configuration (REQUIRED - set in .env file)
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+
+      # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+      - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
+
+      # File Storage Configuration
+      - STORAGE_BASE_PATH=/app/data
+
+      # Add your custom environment variables here:
+      # - YOUR_CUSTOM_VAR=${YOUR_CUSTOM_VAR}
+    volumes:
+      - karaoke_data:/app/data
+
+  audio-processing-service:
+    build:
+      context: .
+      dockerfile: ./services/audioProcessingService/Dockerfile
+    restart: unless-stopped
+    networks:
+      - elastic_kafka
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+      audio-processing-base: { condition: service_completed_successfully }
+      elasticsearch: { condition: service_healthy }
+      broker: { condition: service_started }
+    environment:
+      # Elasticsearch Configuration
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+
+      # Kafka Configuration
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:9093}
+
+      # File Storage Configuration
+      - STORAGE_BASE_PATH=/app/data
+
+      # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+      - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
+
+      # Audio Processing Configuration
+      - DEMUCS_MODEL=${DEMUCS_MODEL:-htdemucs}
+      - AUDIO_SAMPLE_RATE=${AUDIO_SAMPLE_RATE:-44100}
+
+      # Add your custom environment variables here:
+      # - YOUR_CUSTOM_VAR=${YOUR_CUSTOM_VAR}
+    volumes:
+      - karaoke_data:/app/data
+      - demucs_models:/root/.cache/torch/hub/checkpoints
+
+  transcription-service:
+    build:
+      context: .
+      dockerfile: ./services/transcriptionService/Dockerfile
+    restart: unless-stopped
+    networks:
+      - elastic_kafka
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+      transcription-base: { condition: service_completed_successfully }
+      elasticsearch: { condition: service_healthy }
+      broker: { condition: service_started }
+    environment:
+      # Elasticsearch Configuration
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+
+      # Kafka Configuration
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:9093}
+
+      # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+      - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
+
+      # File Storage Configuration
+      - STORAGE_BASE_PATH=/app/data
+
+      # Transcription Configuration
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - TRANSCRIPTION_LANGUAGE=${TRANSCRIPTION_LANGUAGE:-auto}
+
+      # Hugging Face Configuration (optional)
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
+      - CT2_VERBOSE=0
+
+      # Add your custom environment variables here:
+      # - YOUR_CUSTOM_VAR=${YOUR_CUSTOM_VAR}
+    volumes:
+      - karaoke_data:/app/data
+      - whisper_models:/root/.cache/whisper
+      - huggingface_cache:/app/cache/huggingface
+
+  streamlit-client:
+    build:
+      context: .
+      dockerfile: ./services/streamlitClient/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    networks:
+      - elastic_kafka
+    depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
+      api-server: { condition: service_started }
+    environment:
+      # Server Configuration
+      - PORT=8501
+
+      # API Configuration
+      - API_SERVER_URL=${API_SERVER_URL:-http://api-server:8000}
+
+      # Elasticsearch Configuration
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+
+      # Logging Configuration
+      - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
+
+      # Streamlit Configuration
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_HEADLESS=true
+
+      # Add your custom environment variables here:
+      # - YOUR_CUSTOM_VAR=${YOUR_CUSTOM_VAR}
 
 
 volumes:
   elasticsearch:
   kibana_data:
   kibana_config:
+  # Karaoke Application Volumes
+  karaoke_data:      # Shared storage for audio files, videos, and processed data
+  demucs_models:     # Cache for Demucs AI models (audio separation)
+  whisper_models:    # Cache for Whisper AI models (speech recognition)
+  huggingface_cache: # Cache for Hugging Face models (transcription)
 
 networks:
   elastic_kafka:

@@ -7,7 +7,7 @@ from shared.utils.logger import Logger
 # Import config for logger initialization
 from services.apiServer.app.config import settings
 
-logger = Logger.get_logger(name="api-server-songs")
+logger = Logger.get_logger(__name__)
 
 router = APIRouter()
 

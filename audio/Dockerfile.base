@@ -1,0 +1,16 @@
+# ==============================================================================
+# TIER 2: AUDIO PROCESSING SERVICE BASE IMAGE (audio-processing-base)
+# Inherits from root base and adds demucs dependencies
+# ==============================================================================
+
+FROM my-project-root-base:latest
+
+# Install audio processing-specific heavy dependencies
+# These are isolated here to maximize Docker cache efficiency
+RUN pip install --no-cache-dir \
+    soundfile \
+    numpy \
+    demucs \
+    pip-system-certs
+
+# This image serves as a base for audio processing service - no CMD needed
