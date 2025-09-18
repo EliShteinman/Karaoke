@@ -5,8 +5,6 @@
 
 FROM my-project-root-base:latest
 
-# Switch to root for installation and file operations
-USER root
 
 # Install service-specific lightweight dependencies only
 RUN pip install --no-cache-dir \
@@ -19,11 +17,8 @@ RUN pip install --no-cache-dir \
 COPY ./shared /app/shared
 COPY ./services/apiServer /app/services/apiServer
 
-# Set proper ownership
-RUN chown -R app:app /app
-
-# Switch back to app user
-USER app
+# Create data directories
+RUN mkdir -p /app/data/audio /app/data/video
 
 # Set environment variables
 ENV HOST=0.0.0.0
@@ -32,5 +27,5 @@ ENV PORT=8000
 # Expose the port
 EXPOSE ${PORT}
 
-# Run the FastAPI application
+# Run the FastAPI application as root
 CMD ["sh", "-c", "uvicorn services.apiServer.app.main:app --host ${HOST} --port ${PORT}"]

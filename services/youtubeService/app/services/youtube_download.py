@@ -25,9 +25,7 @@ class YouTubeDownloadService:
         self.base_path.mkdir(parents=True, exist_ok=True)
 
         # Initialize logger with proper configuration
-        logger_config = config.get_logger_config()
-        logger_config["name"] = "youtube_service.download"
-        self.logger = Logger.get_logger(**logger_config)
+        self.logger = Logger.get_logger(__name__)
 
         # Initialize shared services using proper configuration
         self.song_repository = RepositoryFactory.create_song_repository_from_params(

@@ -5,9 +5,6 @@
 
 FROM my-project-root-base:latest
 
-# Switch to root for package installation
-USER root
-
 # Install transcription-specific heavy dependencies
 # These are isolated here to maximize Docker cache efficiency
 RUN pip install --no-cache-dir \
@@ -18,8 +15,5 @@ RUN pip install --no-cache-dir \
     nltk \
     langdetect \
     unidecode
-
-# Switch back to app user
-USER app
 
 # This image serves as a base for transcription service - no CMD needed

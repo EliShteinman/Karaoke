@@ -12,8 +12,7 @@ from shared.utils.logger import Logger
 app = FastAPI(title="YouTube Service")
 
 # Initialize shared logger with proper configuration
-logger_config = config.get_logger_config()
-logger = Logger.get_logger(**logger_config)
+logger = config.initialize_logger()
 
 # Initialize services with error handling
 youtube_service = None

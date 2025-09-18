@@ -13,10 +13,8 @@ class YouTubeServiceKafkaProducer:
     def __init__(self, bootstrap_servers: str = config.KAFKA_BOOTSTRAP_SERVERS):
         self.bootstrap_servers = bootstrap_servers
 
-        # Initialize logger with proper configuration
-        logger_config = config.get_logger_config()
-        logger_config["name"] = "youtube_service.kafka_producer"
-        self.logger = Logger.get_logger(**logger_config)
+        # Initialize logger
+        self.logger = Logger.get_logger(__name__)
 
         self.producer = KafkaProducerSync(bootstrap_servers=bootstrap_servers)
         self.logger.info("YouTubeServiceKafkaProducer initialized")

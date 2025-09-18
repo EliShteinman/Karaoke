@@ -27,8 +27,9 @@ from shared.utils.logger import Logger
 from services.audioProcessingService.config import AudioProcessingServiceConfig
 from services.audioProcessingService.Audio_separation import separate_vocals
 
-# Initialize logging
-logger = Logger.get_logger(__name__)
+# Initialize logging - MUST be first!
+config = AudioProcessingServiceConfig()
+logger = config.initialize_logger()
 
 class AudioProcessingService:
     """

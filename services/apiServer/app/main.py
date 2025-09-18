@@ -6,11 +6,7 @@ from shared.utils.logger import Logger
 from shared.elasticsearch.factory import ElasticsearchFactory
 from shared.elasticsearch.song_mapping import SONGS_INDEX_MAPPING, SONGS_INDEX_SETTINGS
 
-logger = Logger.get_logger(
-    name="api-server",
-    es_url=settings.get_log_elasticsearch_url(),
-    index=settings.log_elasticsearch_index
-)
+logger = settings.initialize_logger()
 
 # Create the main FastAPI application instance
 app = FastAPI(

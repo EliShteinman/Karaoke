@@ -47,6 +47,18 @@ class APIServerConfig:
         """Get full Elasticsearch URL for logging."""
         return f"{self.log_elasticsearch_scheme}://{self.log_elasticsearch_host}:{self.log_elasticsearch_port}"
 
+    def initialize_logger(self):
+        """
+        Initialize the logger once with all required parameters.
+        Should be called by main.py before any other imports.
+        """
+        from shared.utils.logger import Logger
+        return Logger.get_logger(
+            name="api-server",
+            es_url=self.get_log_elasticsearch_url(),
+            index=self.log_elasticsearch_index,
+        )
+
 
 # Instantiate the settings object that will be used across the application
 # The rest of the application imports `settings` from this module.

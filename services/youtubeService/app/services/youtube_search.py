@@ -17,9 +17,7 @@ class YouTubeSearchService:
             developerKey=self.api_key,
         )
         # Initialize logger with proper configuration
-        logger_config = config.get_logger_config()
-        logger_config["name"] = "youtube_service.search"
-        self.logger = Logger.get_logger(**logger_config)
+        self.logger = Logger.get_logger(__name__)
         self.logger.info("YouTubeSearchService initialized")
 
     def search(self, query: str, max_results: int = 10) -> SearchResponse:

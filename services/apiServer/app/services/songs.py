@@ -9,7 +9,7 @@ from services.apiServer.app.models import schemas
 from services.apiServer.app.config import settings
 from shared.utils.logger import Logger
 
-logger = Logger.get_logger(name="api-server-services")
+logger = Logger.get_logger(__name__)
 
 
 # --- INTERNAL LOGIC ---

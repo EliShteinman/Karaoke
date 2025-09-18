@@ -5,19 +5,13 @@
 
 FROM audio-processing-base:latest
 
-# Switch to root for file operations only
-USER root
-
 # Copy application code (this layer changes most frequently)
 # No heavy package installations here - all done in base image!
 COPY ./shared /app/shared
 COPY ./services/audioProcessingService /app/services/audioProcessingService
 
-# Set proper ownership
-RUN chown -R app:app /app
+# Create data directories
+RUN mkdir -p /app/data/audio /app/data/video
 
-# Switch back to app user
-USER app
-
-# Run the worker service
+# Run the worker service as root
 CMD ["python", "-m", "services.audioProcessingService.main"]

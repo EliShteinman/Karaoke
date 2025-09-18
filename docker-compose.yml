@@ -44,6 +44,7 @@ services:
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
+    platform: linux/amd64
     networks:
       - elastic_kafka
     environment:
@@ -142,6 +143,7 @@ services:
       # Logging Configuration
       - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
       - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
       - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
 
       # Service URLs
@@ -185,6 +187,9 @@ services:
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
 
       # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
       - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
       - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
 
@@ -204,6 +209,7 @@ services:
     networks:
       - elastic_kafka
     depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
       audio-processing-base: { condition: service_completed_successfully }
       elasticsearch: { condition: service_healthy }
       broker: { condition: service_started }
@@ -216,12 +222,15 @@ services:
       # Kafka Configuration
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:9093}
 
-      # Logging Configuration
-      - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
-      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
-
       # File Storage Configuration
       - STORAGE_BASE_PATH=/app/data
+
+      # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+      - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
 
       # Audio Processing Configuration
       - DEMUCS_MODEL=${DEMUCS_MODEL:-htdemucs}
@@ -241,6 +250,7 @@ services:
     networks:
       - elastic_kafka
     depends_on:
+      my-project-root-base: { condition: service_completed_successfully }
       transcription-base: { condition: service_completed_successfully }
       elasticsearch: { condition: service_healthy }
       broker: { condition: service_started }
@@ -254,6 +264,9 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-broker:9093}
 
       # Logging Configuration
+      - LOG_ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - LOG_ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - LOG_ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
       - LOG_ELASTICSEARCH_URL=http://${ELASTICSEARCH_HOST:-elasticsearch}:${ELASTICSEARCH_PORT:-9200}
       - LOG_ELASTICSEARCH_INDEX=${LOG_ELASTICSEARCH_INDEX:-karaoke-logs}
 
@@ -273,6 +286,7 @@ services:
     volumes:
       - karaoke_data:/app/data
       - whisper_models:/root/.cache/whisper
+      - huggingface_cache:/app/cache/huggingface
 
   streamlit-client:
     build:
@@ -319,6 +333,7 @@ volumes:
   karaoke_data:      # Shared storage for audio files, videos, and processed data
   demucs_models:     # Cache for Demucs AI models (audio separation)
   whisper_models:    # Cache for Whisper AI models (speech recognition)
+  huggingface_cache: # Cache for Hugging Face models (transcription)
 
 networks:
   elastic_kafka:

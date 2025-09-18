@@ -12,8 +12,8 @@ from services.transcriptionService.app.models import TranscriptionOutput, Transc
 
 class SpeechToTextService:
     def __init__(self) -> None:
-        self.logger = Logger.get_logger(__name__)
         self.config = TranscriptionServiceConfig()
+        self.logger = Logger.get_logger(__name__)
 
         self.model_name: str = self.config.stt_model_name
         self.model: Optional[WhisperModel] = None

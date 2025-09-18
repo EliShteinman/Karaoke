@@ -11,7 +11,7 @@ This file shows different test scenarios you can set up.
 
 # Example 1: Test with existing data file
 TEST_CONFIG_EXAMPLE_1 = {
-    "input_path": "/Users/lyhwstynmn/פרוייקטים/python/Karaoke/data/audio/rgSvk335zis/vocals.wav",
+    "input_path": "/Users/lyhwstynmn/פרוייקטים/python/Karaoke/data/audio/1VrXceBBuc8/vocals.wav",
     "output_dir": "/Users/lyhwstynmn/פרוייקטים/python/Karaoke/services/transcriptionService/tests/output",
     "output_file": "rgSvk335zis_test.lrc",
     "test_name": "Hebrew Song Quality Test - rgSvk335zis",

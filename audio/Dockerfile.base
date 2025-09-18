@@ -5,9 +5,6 @@
 
 FROM my-project-root-base:latest
 
-# Switch to root for package installation
-USER root
-
 # Install audio processing-specific heavy dependencies
 # These are isolated here to maximize Docker cache efficiency
 RUN pip install --no-cache-dir \
@@ -15,8 +12,5 @@ RUN pip install --no-cache-dir \
     numpy \
     demucs \
     pip-system-certs
-
-# Switch back to app user
-USER app
 
 # This image serves as a base for audio processing service - no CMD needed

@@ -29,14 +29,4 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Set Python path
 ENV PYTHONPATH=/app
 
-# Create app user for security
-RUN groupadd -r app && useradd -r -g app app
-
-# Create directories with proper ownership
-RUN mkdir -p /app/shared /app/services && \
-    chown -R app:app /app
-
-# Set default user (can be overridden in child images if needed)
-USER app
-
 # This image serves as a base - no CMD needed

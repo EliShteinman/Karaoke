@@ -5,19 +5,18 @@
 
 FROM transcription-base:latest
 
-# Switch to root for file operations only
-USER root
-
 # Copy application code (this layer changes most frequently)
 # No heavy package installations here - all done in base image!
 COPY ./shared /app/shared
 COPY ./services/transcriptionService /app/services/transcriptionService
 
-# Set proper ownership
-RUN chown -R app:app /app
+# Create cache directories
+RUN mkdir -p /app/cache/huggingface
 
-# Switch back to app user
-USER app
+# Set Hugging Face cache directory environment variables
+ENV HF_HOME=/app/cache/huggingface
+ENV TRANSFORMERS_CACHE=/app/cache/huggingface
+ENV HF_HUB_CACHE=/app/cache/huggingface
 
-# Run the worker service
+# Run the worker service as root
 CMD ["python", "-m", "services.transcriptionService.app.main"]

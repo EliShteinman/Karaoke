@@ -30,6 +30,13 @@ class AudioProcessingServiceConfig:
     elasticsearch_scheme = os.getenv("ELASTICSEARCH_SCHEME", "http")
     elasticsearch_songs_index = os.getenv("ELASTICSEARCH_SONGS_INDEX", "songs")
 
+    # --- Logging Configuration ---
+    log_elasticsearch_host = os.getenv("LOG_ELASTICSEARCH_HOST", "localhost")
+    log_elasticsearch_port = int(os.getenv("LOG_ELASTICSEARCH_PORT", "9200"))
+    log_elasticsearch_scheme = os.getenv("LOG_ELASTICSEARCH_SCHEME", "http")
+    log_elasticsearch_index = os.getenv("LOG_ELASTICSEARCH_INDEX", "karaoke-logs")
+    log_elasticsearch_url = os.getenv("LOG_ELASTICSEARCH_URL", f"{log_elasticsearch_scheme}://{log_elasticsearch_host}:{log_elasticsearch_port}")
+
     # --- Storage Configuration ---
     storage_base_path = os.getenv("STORAGE_BASE_PATH", "data")
 
@@ -102,3 +109,16 @@ class AudioProcessingServiceConfig:
             raise ValueError("channels must be 1 (mono) or 2 (stereo)")
 
         return True
+
+    @classmethod
+    def initialize_logger(cls):
+        """
+        Initialize the logger once with all required parameters.
+        Should be called by main.py before any other imports.
+        """
+        from shared.utils.logger import Logger
+        return Logger.get_logger(
+            name="audio-processing-service",
+            es_url=cls.log_elasticsearch_url,
+            index=cls.log_elasticsearch_index,
+        )
