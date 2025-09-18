@@ -6,11 +6,19 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 
+class WordTimestamp(BaseModel):
+    word: str = Field(..., description="The transcribed word")
+    start: float = Field(..., description="Start time of the word in seconds")
+    end: float = Field(..., description="End time of the word in seconds")
+    probability: float = Field(..., description="Transcription probability of the word")
+
+
 class TranscriptionSegment(BaseModel):
     """Single transcription segment with timing information"""
     start: float = Field(..., description="Start time in seconds")
     end: float = Field(..., description="End time in seconds")
     text: str = Field(..., description="Transcribed text for this segment")
+    words: Optional[List[WordTimestamp]] = Field(None, description="Word-level timestamps for this segment")
 
 
 class TranscriptionResult(BaseModel):

@@ -8,7 +8,7 @@ from shared.utils.logger import Logger
 
 # Import config and models
 from services.transcriptionService.app.services.config import TranscriptionServiceConfig
-from services.transcriptionService.app.models import TranscriptionOutput, TranscriptionResult, ProcessingMetadata, TranscriptionSegment
+from services.transcriptionService.app.models import TranscriptionOutput, TranscriptionResult, ProcessingMetadata, TranscriptionSegment, WordTimestamp
 
 class SpeechToTextService:
     def __init__(self) -> None:
@@ -73,11 +73,18 @@ class SpeechToTextService:
 
             self.logger.debug("Processing transcription segments...")
             for i, seg in enumerate(segments_iterator):
-                segment = TranscriptionSegment(start=seg.start, end=seg.end, text=seg.text.strip())
-                segments.append(segment)
+                word_data = None
                 if seg.words:
                     word_count += len(seg.words)
                     all_word_probabilities.extend([word.probability for word in seg.words])
+                    word_data = [
+                        WordTimestamp(word=w.word, start=w.start, end=w.end, probability=w.probability)
+                        for w in seg.words
+                    ]
+                segment = TranscriptionSegment(
+                    start=seg.start, end=seg.end, text=seg.text.strip(), words=word_data
+                )
+                segments.append(segment)
 
                 if i % 10 == 0:  # Log every 10th segment to avoid spam
                     self.logger.debug(f"Processed segment {i + 1}: [{seg.start:.2f}s - {seg.end:.2f}s] '{seg.text.strip()[:50]}{'...' if len(seg.text.strip()) > 50 else ''}'")

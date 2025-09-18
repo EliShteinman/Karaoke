@@ -113,13 +113,75 @@ Transcription Service אחראי על תמלול השירים ויצירת קב�
     "status.overall": "completed",
     "file_paths.lyrics": "/shared/audio/dQw4w9WgXcQ/lyrics.lrc",
     "updated_at": "2025-09-15T10:34:12Z",
-    "processing_metadata.transcription": {
-      "processing_time": 32.1,
-      "confidence_score": 0.92,
-      "language_detected": "en",
-      "word_count": 156,
-      "line_count": 32,
-      "model_used": "whisper-large-v3"
+    "metadata": {
+      "transcription": {
+        "processing_time": 32.1,
+        "confidence_score": 0.92,
+        "language_detected": "en",
+        "language_probability": 0.99,
+        "word_count": 156,
+        "line_count": 32,
+        "model_used": "whisper-large-v3",
+        "duration_seconds": 213.5,
+        "segments": [
+          {
+            "start": 0.5,
+            "end": 4.15,
+            "text": "We're no strangers to love",
+            "words": [
+              {
+                "word": "We're",
+                "start": 0.5,
+                "end": 0.7,
+                "probability": 0.95
+              },
+              {
+                "word": "no",
+                "start": 0.7,
+                "end": 0.9,
+                "probability": 0.98
+              },
+              {
+                "word": "strangers",
+                "start": 0.9,
+                "end": 1.5,
+                "probability": 0.99
+              },
+              {
+                "word": "to",
+                "start": 1.5,
+                "end": 1.7,
+                "probability": 0.97
+              },
+              {
+                "word": "love",
+                "start": 1.7,
+                "end": 2.1,
+                "probability": 0.99
+              }
+            ]
+          },
+          {
+            "start": 4.15,
+            "end": 8.2,
+            "text": "You know the rules and so do I",
+            "words": [
+              {
+                "word": "You",
+                "start": 4.15,
+                "end": 4.3,
+                "probability": 0.99
+              },
+              {
+                "word": "know",
+                "start": 4.3,
+                "end": 4.5,
+                "probability": 0.99
+              }
+            ]
+          }
+        ]
+      }
     }
   }
 }

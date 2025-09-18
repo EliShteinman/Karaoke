@@ -15,8 +15,8 @@ from shared.utils.data_utils import normalize_elasticsearch_song_document
 from services.transcriptionService.app.services.config import TranscriptionServiceConfig
 from services.transcriptionService.app.models import (
     ElasticsearchSongDocument,
-    ProcessingMetadata,
-    ErrorDetails
+    ErrorDetails,
+    TranscriptionOutput
 )
 
 
@@ -97,7 +97,7 @@ class ElasticsearchUpdater:
             return None
 
 
-    def update_song_document(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> bool:
+    def update_song_document(self, video_id: str, lyrics_path: str, transcription_output: TranscriptionOutput) -> bool:
         try:
             self.logger.debug(f"[{video_id}] - Updating lyrics file path to: {lyrics_path}")
             file_update_result = self.song_repository.update_file_path(video_id=video_id, file_type="lyrics", file_path=lyrics_path)
@@ -105,8 +105,13 @@ class ElasticsearchUpdater:
                 self.logger.error(f"[{video_id}] - Failed to update lyrics file path in repository.")
                 return False
 
-            metadata_dict = {"transcription": processing_metadata.dict()}
-            self.logger.debug(f"[{video_id}] - Updating processing metadata with: {metadata_dict}")
+            segments_for_es = [segment.dict() for segment in transcription_output.transcription_result.segments]
+            metadata_dict = {
+                "transcription": {
+                    **transcription_output.processing_metadata.dict(),
+                    "segments": segments_for_es
+                }
+            }
             metadata_update_result = self.song_repository.update_metadata(video_id=video_id, metadata=metadata_dict)
             if not metadata_update_result:
                 self.logger.error(f"[{video_id}] - Failed to update metadata in repository.")

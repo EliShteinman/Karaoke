@@ -142,7 +142,7 @@ class TranscriptionConsumer:
             self.logger.debug(f"[{video_id}] - LRC file created at: {lyrics_path}")
 
             # Step 6: Update Elasticsearch with success
-            self._update_elasticsearch_success(video_id, lyrics_path, transcription_output.processing_metadata)
+            self._update_elasticsearch_success(video_id, lyrics_path, transcription_output)
             self.logger.debug(f"[{video_id}] - Elasticsearch document updated with transcription metadata")
 
             # Step 7: Send success message to Kafka
@@ -305,11 +305,11 @@ class TranscriptionConsumer:
         remaining_seconds = seconds % 60
         return f"{minutes:02d}:{remaining_seconds:05.2f}"
 
-    def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, processing_metadata: ProcessingMetadata) -> None:
+    def _update_elasticsearch_success(self, video_id: str, lyrics_path: str, transcription_output: TranscriptionOutput) -> None:
         self.logger.debug(f"[{video_id}] - Step 4: Updating Elasticsearch with results.")
         # Use relative path for Elasticsearch storage
         relative_lyrics_path = self.file_manager.get_relative_path_lyrics(video_id)
-        success = self.es_updater.update_song_document(video_id=video_id, lyrics_path=relative_lyrics_path, processing_metadata=processing_metadata)
+        success = self.es_updater.update_song_document(video_id=video_id, lyrics_path=relative_lyrics_path, transcription_output=transcription_output)
         if not success:
             raise Exception("Failed to update Elasticsearch with transcription results")
         self.logger.debug(f"[{video_id}] - Elasticsearch document updated successfully.")
